@@ -1,0 +1,13 @@
+[package]
+name = "proj_net"
+version = "0.1.0"
+authors = ["Tom Eccles"]
+description = "Networking to go with proj_crypto"
+documentation = "https://tblah.github.io/project-net/"
+licence = "GPL-3"
+readme = "README.md"
+repository = "https://github.com/tblah/project-net"
+
+[dependencies]
+proj_crypto = { git = "https://github.com/tblah/project-crypto" }
+
