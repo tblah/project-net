@@ -1,5 +1,5 @@
 # project-net
-This is a TCPIP implementation of the cryptographic protocol implemented in [proj_crypto][https://github.com/tblah/project-crypto].
+This is a TCPIP implementation of the cryptographic protocol implemented in [proj_crypto](https://github.com/tblah/project-crypto).
 
 This project is licenced under GPL version 3 or later as published by the [Free Software Foundation](https://fsf.org)
 
