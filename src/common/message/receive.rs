@@ -29,7 +29,7 @@ pub enum ReceiveError {
     BadPacket
 }
 
-pub fn receive_device_first <R: io::Read> (source: &mut R) -> Result<Message, ReceiveError> {
+pub fn device_first <R: io::Read> (source: &mut R) -> Result<Message, ReceiveError> {
     let (opcode, message_number) = match get_header(source) {
         Err(e) => return Err(e),
         Ok(x) => x
@@ -38,7 +38,7 @@ pub fn receive_device_first <R: io::Read> (source: &mut R) -> Result<Message, Re
     parse_clear_message(source, opcode, message_number)
 }
         
-pub fn receive_server_first <R: io::Read> (source: &mut R, long_term_keys: &LongTermKeys, pk_session: &PublicKey, sk_session: &SecretKey ) -> Result<Message, ReceiveError> {
+pub fn server_first <R: io::Read> (source: &mut R, long_term_keys: &LongTermKeys, pk_session: &PublicKey, sk_session: &SecretKey ) -> Result<Message, ReceiveError> {
     let (opcode, message_number) = match get_header(source) {
         Err(e) => return Err(e),
         Ok(x) => x
@@ -75,7 +75,7 @@ pub fn receive_server_first <R: io::Read> (source: &mut R, long_term_keys: &Long
     }
 }
 
-pub fn receive_device_second <R: io::Read> (source: &mut R, session_keys: &SessionKeys, challenge: &[u8; CHALLENGE_BYTES]) -> Result<Message, ReceiveError> {
+pub fn device_second <R: io::Read> (source: &mut R, session_keys: &SessionKeys, challenge: &[u8; CHALLENGE_BYTES]) -> Result<Message, ReceiveError> {
     let (opcode, message_number) = match get_header(source) {
         Err(e) => return Err(e),
         Ok(x) => x
@@ -99,7 +99,7 @@ pub fn receive_device_second <R: io::Read> (source: &mut R, session_keys: &Sessi
     }
 }
 
-pub fn receive <R: io::Read> (source: &mut R, session_keys: &symmetric::State) -> Result<Message, ReceiveError> {
+pub fn general <R: io::Read> (source: &mut R, session_keys: &symmetric::State) -> Result<Message, ReceiveError> {
     let (opcode, message_number) = match get_header(source) {
         Err(e) => return Err(e),
         Ok(x) => x
@@ -183,7 +183,7 @@ fn parse_crypt_message <R: io::Read> (source: &mut R, opcode: u8, message_number
             let length = two_bytes_to_u16(length_bytes);
 
             // now get the ciphertext
-            let ciphertext = match get_n_bytes(source, length as usize) {
+            let ciphertext = match get_n_bytes(source, (length as usize) + AUTH_TAG_BYTES) {
                 Err(e) => return Err(e),
                 Ok(x) => x,
             };

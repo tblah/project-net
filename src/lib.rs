@@ -26,5 +26,6 @@
 #![warn(unused_qualifications)]
 
 extern crate proj_crypto;
+//extern crate sodiumoxide;
 
 mod common;
