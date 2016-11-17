@@ -23,7 +23,7 @@ use super::Message;
 #[derive(Debug)]
 pub enum ReceiveError {
     Read(io::Error),
-    NotEnoughRead,
+    NotEnoughRead(usize),
     InvalidOpcode,
     Crypto,
     BadPacket
@@ -47,6 +47,10 @@ pub fn server_first <R: io::Read> (source: &mut R, long_term_keys: &LongTermKeys
     if opcode == opcodes::ERROR {
         Ok(Message { number: message_number, content: MessageContent::Error })
     } else if opcode == opcodes::SERVER_FIRST {
+        if message_number != 0 {
+            return Err(ReceiveError::BadPacket);
+        }
+
         // get the content section of the message
         let buff = match get_n_bytes(source, PUBLIC_KEY_BYTES + CHALLENGE_BYTES + AUTH_TAG_BYTES) {
             Err(e) => return Err(e),
@@ -75,7 +79,8 @@ pub fn server_first <R: io::Read> (source: &mut R, long_term_keys: &LongTermKeys
     }
 }
 
-pub fn device_second <R: io::Read> (source: &mut R, session_keys: &SessionKeys, challenge: &[u8; CHALLENGE_BYTES]) -> Result<Message, ReceiveError> {
+pub fn device_second <R: io::Read> (source: &mut R, session_keys: &SessionKeys, challenge: &[u8]) -> Result<Message, ReceiveError> {
+    assert_eq!(challenge.len(), CHALLENGE_BYTES);
     let (opcode, message_number) = match get_header(source) {
         Err(e) => return Err(e),
         Ok(x) => x
@@ -84,6 +89,10 @@ pub fn device_second <R: io::Read> (source: &mut R, session_keys: &SessionKeys, 
     if opcode == opcodes::ERROR {
         Ok(Message{ number: message_number, content: MessageContent::Error })
     } else if opcode == opcodes::DEVICE_SECOND {
+        if message_number != 1 {
+            return Err(ReceiveError::BadPacket);
+        }
+        
         let contents = match get_n_bytes(source, CHALLENGE_BYTES + AUTH_TAG_BYTES) {
             Err(e) => return Err(e),
             Ok(x) => x,
@@ -116,12 +125,17 @@ pub fn general <R: io::Read> (source: &mut R, session_keys: &symmetric::State) -
 fn get_n_bytes<R: io::Read> (source: &mut R, n: usize) -> Result<Vec<u8>, ReceiveError> {
     let mut buffer: Vec<u8> = Vec::with_capacity(n); // dynamically allocate our buffer
 
+    // if you don't fill the buffer with blanks beforehand, read things the buffer length is 0.
+    for _ in 0..n {
+        buffer.push(0);
+    }
+    
     match source.read(&mut buffer) {
         Err(e) => Err(ReceiveError::Read(e)),
         Ok(bytes_read) => if bytes_read == n {
             Ok(buffer)
         } else {
-            Err(ReceiveError::NotEnoughRead)
+            Err(ReceiveError::NotEnoughRead(bytes_read))
         }
     }
 }
@@ -130,7 +144,7 @@ fn get_n_bytes<R: io::Read> (source: &mut R, n: usize) -> Result<Vec<u8>, Receiv
 fn two_bytes_to_u16(bytes: &[u8]) -> u16 {
     assert_eq!(bytes.len(), 2);
 
-    bytes[0] as u16 + ((bytes[1] as u16) << 8)
+    bytes[1] as u16 + ((bytes[0] as u16) << 8)
 }
 
 fn get_header<R: io::Read> (source: &mut R) -> Result<(u8, u16), ReceiveError> {
@@ -152,6 +166,10 @@ fn parse_clear_message <R: io::Read> (source: &mut R, opcode: u8, message_number
     match opcode {
         opcodes::ERROR => Ok(Message{ number: message_number, content: MessageContent::Error, }),
         opcodes::DEVICE_FIRST => {
+            if message_number != 0 {
+                return Err(ReceiveError::BadPacket);
+            }
+            
             let pub_key_bytes = match get_n_bytes(source, PUBLIC_KEY_BYTES) {
                 Err(e) => return Err(e),
                 Ok(x) => x,
