@@ -49,7 +49,7 @@ fn main() {
     opts.optflag("h", "help", "Print this help menu");
 
     // key generation mode - optional, takes an argument
-    opts.optopt("", "keygen", "Generate a long term keypair", "OUTPUT_FILE");
+    opts.optopt("", "keygen", "Generate a long term keypair into OUTPUTFILE (both keys) and OUTFILE.pub (just the public key)", "OUTPUT_FILE");
 
     // server mode - optional, takes an argument
     opts.optopt("", "server", "Start a server", "MY_KEYPAIR");
@@ -120,14 +120,13 @@ fn to_utf8_hex<'a>(bytes: &[u8]) -> Vec<u8> {
         .collect();
 
     let mut ret = Vec::new();
-    ret.extend_from_slice(strings.join(" ").as_bytes());
+    ret.extend_from_slice(strings.join("").as_bytes());
     ret
 }
 
 /// This is not memory tidy. It would be difficult to clear the memory properly here and I don't think it matters too much because this doesn't connect to the network
 fn key_gen(file_path: &str) {
-    println!("Running key-gen into {}", file_path);
-
+    // write keypair file
     let option = OpenOptions::new()
         .write(true)
         .truncate(true)
@@ -145,9 +144,27 @@ fn key_gen(file_path: &str) {
 
     // unwraps to make sure we panic if something doesn't work
     let _ = file.write(b"PK: ").unwrap();
-    let _ = file.write(&to_utf8_hex(&pk[..]));
+    let _ = file.write(&to_utf8_hex(&pk[..])).unwrap();
     let _ = file.write(b"\nSK: ").unwrap();
-    let _ = file.write(&to_utf8_hex(&sk[..]));
+    let _ = file.write(&to_utf8_hex(&sk[..])).unwrap();
+    let _ = file.write(b"\n").unwrap(); // just looks a bit nicer if someone curious looks at the file
+
+    // write public key file
+    let pub_option = OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .create(true)
+        .mode(0o600) // rw-------
+        .open(String::from(file_path) + ".pub");
+
+    let mut pub_file = match pub_option {
+        Ok(f) => f,
+        Err(e) => panic!("Opening file '{}' failed with error: {}", file_path, e),
+    };
+
+    let _ = pub_file.write(b"PK: ").unwrap();
+    let _ = pub_file.write(&to_utf8_hex(&pk[..])).unwrap();
+    let _ = pub_file.write(b"\n").unwrap();
 }
 
 fn server(my_keypair: &str, their_pk: &str, socket: &str) {
