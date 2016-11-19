@@ -20,9 +20,13 @@ use getopts::Options;
 use std::env;
 use std::process;
 use std::fs::OpenOptions;
+use std::fs;
 use std::os::unix::fs::OpenOptionsExt;
-use proj_crypto::asymmetric::gen_keypair;
+use proj_crypto::asymmetric;
 use std::io::Write;
+use std::io::Read;
+use std::io::Seek;
+use std::io::SeekFrom;
 
 const DEFAULT_SOCKET_ADDR: &'static str = "127.0.0.1:1025";
 
@@ -120,7 +124,7 @@ fn to_utf8_hex<'a>(bytes: &[u8]) -> Vec<u8> {
         .collect();
 
     let mut ret = Vec::new();
-    ret.extend_from_slice(strings.join("").as_bytes());
+    ret.extend_from_slice(strings.join(" ").as_bytes());
     ret
 }
 
@@ -140,7 +144,7 @@ fn key_gen(file_path: &str) {
     };
 
     sodiumoxide::init();
-    let (pk, sk) = gen_keypair();
+    let (pk, sk) = asymmetric::gen_keypair();
 
     // unwraps to make sure we panic if something doesn't work
     let _ = file.write(b"PK: ").unwrap();
@@ -167,10 +171,102 @@ fn key_gen(file_path: &str) {
     let _ = pub_file.write(b"\n").unwrap();
 }
 
-fn server(my_keypair: &str, their_pk: &str, socket: &str) {
-    println!("Running a server on {}, with keypair from {} and public key from {}", socket, my_keypair, their_pk);
+fn hex_char_to_num(c: char) -> u8 {
+    match c {
+        '0' => 0,
+        '1' => 1,
+        '2' => 2,
+        '3' => 3,
+        '4' => 4,
+        '5' => 5,
+        '6' => 6,
+        '7' => 7,
+        '8' => 8,
+        '9' => 9,
+        'A' => 10,
+        'B' => 11,
+        'C' => 12,
+        'D' => 13,
+        'E' => 14,
+        'F' => 15,
+        _ => panic!("{} is not a hexadecimal digit", c),
+    }
 }
 
-fn client(my_keypair: &str, their_pk: &str, socket: &str) {
-    println!("Running a client connecting to {}, with keypair from {} and public key from {}", socket, my_keypair, their_pk);
+fn hex_to_byte(hex: Vec<char>) -> u8 {
+    assert_eq!(hex.len(), 2);
+
+    hex_char_to_num(hex[1]) | (hex_char_to_num(hex[0]) << 4)
+}
+
+/// returns a file so as to give it back to the caller (it was borrowed to get here)
+fn get_key_from_file(mut file: fs::File, prefix: &str) -> (fs::File, Vec<u8>) {
+    let prefix_expected = String::from(prefix) + ": ";
+    let mut prefix_read_bytes: [u8; 4] = [0; 4]; // e.g. "PK: "
+
+    match file.read(&mut prefix_read_bytes) {
+        Ok(_) => (),
+        Err(e) => panic!("Error reading file: {}", e),
+    };
+
+    if prefix_read_bytes != prefix_expected.as_bytes() { panic!("The prefix read (as bytes) was {:?}, we expected {:?} ('{}'). Is the file malformed?", prefix_read_bytes, prefix_expected.as_bytes(), prefix_expected); }
+
+    let mut key_hex_bytes: [u8; 64+31] = [0; 64+31]; // 64 characters and 31 spaces
+
+    match file.read(&mut key_hex_bytes) {
+        Ok(_) => (),
+        Err(e) => panic!("Error reading file: {}", e),
+    };
+
+    let mut key_hex_vec = Vec::new();
+    key_hex_vec.extend_from_slice(&key_hex_bytes);
+    
+    let key_hex: Vec<char> = String::from_utf8(key_hex_vec).unwrap().chars().collect();
+
+    // split the hex string into pairs of of hex digits (bytes)
+    let key: Vec<u8> = key_hex.split(|c| *c == ' ')
+        .map(|x| x.to_vec())
+        .map(|x| hex_to_byte(x))
+        .collect();
+
+
+    (file, key)
+}
+
+fn open_or_panic(path: &str) -> fs::File {
+    match fs::File::open(path) {
+        Ok(f) => f,
+        Err(e) => panic!("Error opening file '{}': {}", path, e),
+    }
+}
+
+/// returns (my_pk, my_sk, their_pk)
+fn get_keys(my_keypair_path: &str, their_pk_path: &str) -> asymmetric::LongTermKeys {
+    let mut my_keypair_file = open_or_panic(my_keypair_path);
+    let mut their_pk_file = open_or_panic(their_pk_path);
+
+    let (mut my_keypair_file, pk_bytes) = get_key_from_file(my_keypair_file, "PK");
+    let (_, their_pk_bytes) = get_key_from_file(their_pk_file, "PK");
+
+    // seek to the start of SK
+    my_keypair_file.seek(SeekFrom::Start(4+64+31+1)).unwrap(); // 4 byte prefix + 64 bytes of hex + 31 spaces + newline
+    let (_, sk_bytes) = get_key_from_file(my_keypair_file, "SK");
+
+    let pk = asymmetric::public_key_from_slice(&pk_bytes).unwrap();
+    let their_pk = asymmetric::public_key_from_slice(&their_pk_bytes).unwrap();
+    let sk = asymmetric::secret_key_from_slice(&sk_bytes).unwrap();
+
+    asymmetric::LongTermKeys {
+        my_public_key: pk,
+        my_secret_key: sk,
+        their_public_key: their_pk,
+    }
+}
+
+fn server(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
+    let long_keys = get_keys(my_keypair_path, their_pk_path);
+}
+
+fn client(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
+    let long_keys = get_keys(my_keypair_path, their_pk_path);
 }       
