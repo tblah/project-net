@@ -13,9 +13,16 @@
     along with project-net.  If not, see http://www.gnu.org/licenses/.*/
 
 extern crate getopts;
+extern crate proj_crypto;
+extern crate sodiumoxide;
+
 use getopts::Options;
 use std::env;
 use std::process;
+use std::fs::OpenOptions;
+use std::os::unix::fs::OpenOptionsExt;
+use proj_crypto::asymmetric::gen_keypair;
+use std::io::Write;
 
 const DEFAULT_SOCKET_ADDR: &'static str = "127.0.0.1:1025";
 
@@ -107,8 +114,40 @@ fn main() {
     }
 }
 
+fn to_utf8_hex<'a>(bytes: &[u8]) -> Vec<u8> {
+    let strings: Vec<String> = bytes.into_iter()
+        .map(|b| format!("{:02X}", b))
+        .collect();
+
+    let mut ret = Vec::new();
+    ret.extend_from_slice(strings.join(" ").as_bytes());
+    ret
+}
+
+/// This is not memory tidy. It would be difficult to clear the memory properly here and I don't think it matters too much because this doesn't connect to the network
 fn key_gen(file_path: &str) {
     println!("Running key-gen into {}", file_path);
+
+    let option = OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .create(true)
+        .mode(0o600) // rw-------
+        .open(file_path);
+
+    let mut file = match option {
+        Ok(f) => f,
+        Err(e) => panic!("Opening file '{}' failed with error: {}", file_path, e),
+    };
+
+    sodiumoxide::init();
+    let (pk, sk) = gen_keypair();
+
+    // unwraps to make sure we panic if something doesn't work
+    let _ = file.write(b"PK: ").unwrap();
+    let _ = file.write(&to_utf8_hex(&pk[..]));
+    let _ = file.write(b"\nSK: ").unwrap();
+    let _ = file.write(&to_utf8_hex(&sk[..]));
 }
 
 fn server(my_keypair: &str, their_pk: &str, socket: &str) {
