@@ -11,3 +11,4 @@ repository = "https://github.com/tblah/project-net"
 [dependencies]
 proj_crypto = { git = "https://github.com/tblah/project-crypto" }
 sodiumoxide = "0.0.12"
+getopts = "0.2"
