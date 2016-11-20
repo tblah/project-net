@@ -16,6 +16,33 @@
 pub mod message; 
 use std::io;
 use std::io::Write;
+use std::net::TcpStream;
+use std::net::Shutdown;
+use proj_crypto::asymmetric::{LongTermKeys, SessionKeys};
+
+/// Errors returned by the client or server
+#[derive(Debug)]
+pub enum Error {
+    Connect(io::Error),
+    Bind(io::Error),
+    Accept(io::Error),
+    DeviceFirst(message::Error),
+    ServerFirst(message::Error),
+    DeviceSecond(message::Error),
+    Sending(message::Error),
+    Receiving(message::Error),
+    BadMessageN,
+}
+
+/// state for both the client and server
+pub struct ProtocolState {
+    pub stream: TcpStream,
+    pub long_keys: LongTermKeys,
+    pub next_send_n: u16,
+    pub next_recv_n: u16,
+    pub session_keys: SessionKeys,
+}
+
 
 /// Log level guaranteed to be printed on debug builds
 pub const LOG_DEBUG: u8 = 100;
@@ -36,11 +63,15 @@ pub fn log(msg: &str, level: u8) {
 }
 
 /// Send an error message
-pub fn send_error<W: Write>(dest: &mut W, message_number: u16) -> bool {
-    match message::send::error(dest, message_number) {
+pub fn send_error(dest: &mut TcpStream, message_number: u16) -> bool {
+    let ret = match message::send::error(dest, message_number) {
         Some(e) => {log(&format!("Error encountered when sending an error packet: {:?}", e), LOG_DEBUG); false},
         None => {log("Sent error packet", LOG_DEBUG); true },
-    }
+    };
+
+    dest.shutdown(Shutdown::Both).unwrap();
+
+    ret
 }
 
 /// Check that a message number looks correct

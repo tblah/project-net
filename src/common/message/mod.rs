@@ -13,11 +13,25 @@
 along with project-net.  If not, see http://www.gnu.org/licenses/.*/
 
 use proj_crypto::asymmetric;
+use std::io;
+
+pub type Keypair = (asymmetric::PublicKey, asymmetric::SecretKey);
 
 #[derive(Debug)]
 pub struct Message {
     pub number: u16,
     pub content: MessageContent,
+}
+
+#[derive(Debug)]
+pub enum Error {
+    Read(io::Error),
+    Write(io::Error),
+    NotEnoughRead(usize),
+    NotEnoughWritten(usize),
+    InvalidOpcode,
+    Crypto,
+    BadPacket
 }
 
 /// Representation of the information that we care about within a message
@@ -155,7 +169,7 @@ mod tests {
         let _ = do_full_exchange();
     }
 
-    fn errorp(msg: Result<Message, receive::ReceiveError>) -> bool {
+    fn errorp(msg: Result<Message, Error>) -> bool {
         match msg.unwrap().content {
             MessageContent::Error => true,
             _ => false,

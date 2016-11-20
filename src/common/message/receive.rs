@@ -14,22 +14,14 @@ along with project-net.  If not, see http://www.gnu.org/licenses/.*/
 
 use super::MessageContent;
 use super::opcodes;
+use super::Error;
 use std::io;
 use proj_crypto::asymmetric::*;
 use proj_crypto::symmetric::AUTH_TAG_BYTES;
 use proj_crypto::symmetric;
-use super::Message;
+use super::{Message, Keypair};
 
-#[derive(Debug)]
-pub enum Error {
-    Read(io::Error),
-    NotEnoughRead(usize),
-    InvalidOpcode,
-    Crypto,
-    BadPacket
-}
-
-pub fn device_first <R: io::Read> (source: &mut R) -> Result<Message, Error> {
+pub fn receive_device_first <R: io::Read> (source: &mut R) -> Result<Message, Error> {
     let (opcode, message_number) = match get_header(source) {
         Err(e) => return Err(e),
         Ok(x) => x
@@ -38,7 +30,8 @@ pub fn device_first <R: io::Read> (source: &mut R) -> Result<Message, Error> {
     parse_clear_message(source, opcode, message_number)
 }
         
-pub fn server_first <R: io::Read> (source: &mut R, long_term_keys: &LongTermKeys, pk_session: &PublicKey, sk_session: &SecretKey ) -> Result<Message, Error> {
+pub fn server_first <R: io::Read> (source: &mut R, long_term_keys: &LongTermKeys, session_keypair: &Keypair ) -> Result<Message, Error> {
+    let (ref pk_session, ref sk_session) = *session_keypair;
     let (opcode, message_number) = match get_header(source) {
         Err(e) => return Err(e),
         Ok(x) => x
@@ -59,7 +52,7 @@ pub fn server_first <R: io::Read> (source: &mut R, long_term_keys: &LongTermKeys
 
         // separate the authentication tag from the message and check that it is correct
         let (auth_tag, the_rest) = buff.split_at(AUTH_TAG_BYTES);
-        if !long_term_keys.device_verify_server_msg(pk_session, sk_session, the_rest, message_number, auth_tag) {
+        if !long_term_keys.device_verify_server_msg(&pk_session, &sk_session, the_rest, message_number, auth_tag) {
             return Err(Error::Crypto);
         }
 

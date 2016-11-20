@@ -14,97 +14,70 @@
 
 extern crate sodiumoxide;
 use std::net;
-use std::io;
 use proj_crypto::asymmetric::LongTermKeys;
-use proj_crypto::asymmetric::SessionKeys;
-use proj_crypto::symmetric;
 use super::common::*;
-use super::common::message::*;
+use super::common::message::{receive, send, MessageContent};
 
-/// Contains the state information for a client
-pub struct Client {
-    stream: net::TcpStream,
-    long_keys: LongTermKeys,
-    next_send_n: u16,
-    next_recv_n: u16,
-    session_keys: SessionKeys,
-}
+/// Creates a new client and performs a key exchange
+pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<ProtocolState, Error> {
+    sodiumoxide::init();
+    // attempt connection
+    let mut stream = match net::TcpStream::connect(socket_addr) {
+        Ok(s) => s,
+        Err(e) => {
+            log("Failed to connect", LOG_RELEASE);
+            return Err(Error::Connect(e)); },
+    };
 
-/// Errors returned by the client
-#[derive(Debug)]
-pub enum Error {
-    Connect(io::Error),
-    DeviceFirst(send::Error),
-    ServerFirst(receive::Error),
-    DeviceSecond(send::Error),
-    Sending(send::Error),
-    Receiving(receive::Error),
-    BadMessageN,
-}
+    log("Connected successfully", LOG_DEBUG);
+    let mut expected_next_n: u16 = 0;
 
-impl Client {
-    /// Creates a new client and performs a key exchange
-    pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Client, Error> {
-        sodiumoxide::init();
-        // attempt connection
-        let mut stream = match net::TcpStream::connect(socket_addr) {
-            Ok(s) => s,
-            Err(e) => {
-                log("Failed to connect", LOG_RELEASE);
-                return Err(Error::Connect(e)); },
-        };
+    // send device first
+    let keypair = match send::device_first(&mut stream) {
+        Ok(k) => k,
+        Err(e) => {
+            log("Problem sending device_first", LOG_RELEASE);
+            return Err(Error::DeviceFirst(e)); },
+    };
 
-        log("Connected successfully", LOG_DEBUG);
-        let mut expected_next_n: u16 = 0;
+    log("Sent device_first successfully", LOG_DEBUG);
 
-        // send device first
-        let keypair = match send::device_first(&mut stream, &long_keys) {
-            Ok(k) => k,
-            Err(e) => {
-                log("Problem sending device_first", LOG_RELEASE);
-                return Err(Error::DeviceFirst(e)); },
-        };
-
-        log("Sent device_first successfully", LOG_DEBUG);
-
-        // receive server response
-        let server_first = match receive::server_first(&mut stream, &long_keys, &keypair.0, &keypair.1) {
-            Ok(m) => m,
-            Err(e) => {
-                log("Failed to receive server_first", LOG_RELEASE);
-                send_error(&mut stream, 1);
-                return Err(Error::ServerFirst(e)); },
-        };
-
-        if !check_message_n(&mut expected_next_n, &server_first) {
+    // receive server response
+    let server_first = match receive::server_first(&mut stream, &long_keys, &keypair) {
+        Ok(m) => m,
+        Err(e) => {
+            log("Failed to receive server_first", LOG_RELEASE);
             send_error(&mut stream, 1);
-            return Err(Error::BadMessageN);
-        }
+            return Err(Error::ServerFirst(e)); },
+    };
 
-        let (server_pk, challenge) = match server_first.content {
-            MessageContent::ServerFirst(pk, c) => (pk, c),
-            _ => return Err(Error::ServerFirst(receive::Error::InvalidOpcode)),
-        };
-        
-        log("received server_first successfully", LOG_DEBUG);    
-
-        // send challenge response
-        let session_keys = match send::device_second(&mut stream, &long_keys, &server_pk, &challenge, &keypair) {
-            Ok(sk) => sk,
-            Err(e) => return Err(Error::DeviceSecond(e)),
-        };
-
-        log("Key exchange complete", LOG_DEBUG);
-
-        let client = Client {
-            stream: stream,
-            long_keys: long_keys,
-            next_send_n: 2,
-            next_recv_n: expected_next_n,
-            session_keys: session_keys,
-        };
-
-        Ok(client)
+    if !check_message_n(&mut expected_next_n, &server_first) {
+        send_error(&mut stream, 1);
+        return Err(Error::BadMessageN);
     }
 
+    let (server_pk, challenge) = match server_first.content {
+        MessageContent::ServerFirst(pk, c) => (pk, c),
+        _ => return Err(Error::ServerFirst(message::Error::InvalidOpcode)),
+    };
+
+    log("received server_first successfully", LOG_DEBUG);    
+
+    // send challenge response
+    let session_keys = match send::device_second(&mut stream, &long_keys, &server_pk, &challenge, &keypair) {
+        Ok(sk) => sk,
+        Err(e) => return Err(Error::DeviceSecond(e)),
+    };
+
+    log("Key exchange complete", LOG_DEBUG);
+
+    let client = ProtocolState {
+        stream: stream,
+        long_keys: long_keys,
+        next_send_n: 2,
+        next_recv_n: expected_next_n,
+        session_keys: session_keys,
+    };
+
+    Ok(client)
 }

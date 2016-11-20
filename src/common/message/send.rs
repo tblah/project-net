@@ -13,22 +13,16 @@
 along with project-net.  If not, see http://www.gnu.org/licenses/.*/
 
 use super::opcodes;
+use super::Error;
+use super::Keypair;
 use std::io;
 use proj_crypto::asymmetric;
 use proj_crypto::symmetric;
 
-#[derive(Debug)]
-pub enum Error {
-    Write(io::Error),
-    NotEnoughWritten(usize),
-}
-
-pub type Keypair = (asymmetric::PublicKey, asymmetric::SecretKey);
-
-pub fn device_first<W: io::Write>(dest: &mut W, long_term_keys: &asymmetric::LongTermKeys) -> Result<Keypair, Error> {
+pub fn device_first<W: io::Write>(dest: &mut W) -> Result<Keypair, Error> {
     let mut message = construct_header(opcodes::DEVICE_FIRST, 0);
     
-    let keypair = long_term_keys.device_first();
+    let keypair = asymmetric::device_first();
 
     let pubkey_bytes = &keypair.0.clone()[..];
 

@@ -28,8 +28,8 @@ use std::io::Write;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
-use proj_net::server::Server;
-use proj_net::client::Client;
+use proj_net::client;
+use proj_net::server;
 
 const DEFAULT_SOCKET_ADDR: &'static str = "127.0.0.1:1025";
 
@@ -267,15 +267,15 @@ fn get_keys(my_keypair_path: &str, their_pk_path: &str) -> asymmetric::LongTermK
 }
 
 fn server(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
-    let server = match Server::start(socket, get_keys(my_keypair_path, their_pk_path)) {
-        Err(_) => process::exit(1),
+    let server = match server::start(socket, get_keys(my_keypair_path, their_pk_path)) {
+        Err(e) => panic!("Server failed to start with error {:?}", e),
         Ok(s) => s,
     };
 }
 
 fn client(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
-    let client = match Client::start(socket, get_keys(my_keypair_path, their_pk_path)) {
-        Err(_) => process::exit(1),
-        Ok(s) => s,
+    let client = match client::start(socket, get_keys(my_keypair_path, their_pk_path)) {
+        Err(e) => panic!("Client failed to start with error {:?}", e),
+        Ok(c) => c,
     };
 }       
