@@ -14,6 +14,7 @@
 
 extern crate getopts;
 extern crate proj_crypto;
+extern crate proj_net;
 extern crate sodiumoxide;
 
 use getopts::Options;
@@ -27,6 +28,8 @@ use std::io::Write;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
+use proj_net::server::Server;
+use proj_net::client::Client;
 
 const DEFAULT_SOCKET_ADDR: &'static str = "127.0.0.1:1025";
 
@@ -242,8 +245,8 @@ fn open_or_panic(path: &str) -> fs::File {
 
 /// returns (my_pk, my_sk, their_pk)
 fn get_keys(my_keypair_path: &str, their_pk_path: &str) -> asymmetric::LongTermKeys {
-    let mut my_keypair_file = open_or_panic(my_keypair_path);
-    let mut their_pk_file = open_or_panic(their_pk_path);
+    let my_keypair_file = open_or_panic(my_keypair_path);
+    let their_pk_file = open_or_panic(their_pk_path);
 
     let (mut my_keypair_file, pk_bytes) = get_key_from_file(my_keypair_file, "PK");
     let (_, their_pk_bytes) = get_key_from_file(their_pk_file, "PK");
@@ -264,9 +267,15 @@ fn get_keys(my_keypair_path: &str, their_pk_path: &str) -> asymmetric::LongTermK
 }
 
 fn server(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
-    let long_keys = get_keys(my_keypair_path, their_pk_path);
+    let server = match Server::start(socket, get_keys(my_keypair_path, their_pk_path)) {
+        Err(_) => process::exit(1),
+        Ok(s) => s,
+    };
 }
 
 fn client(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
-    let long_keys = get_keys(my_keypair_path, their_pk_path);
+    let client = match Client::start(socket, get_keys(my_keypair_path, their_pk_path)) {
+        Err(_) => process::exit(1),
+        Ok(s) => s,
+    };
 }       

@@ -14,12 +14,14 @@ along with project-net.  If not, see http://www.gnu.org/licenses/.*/
 
 use proj_crypto::asymmetric;
 
+#[derive(Debug)]
 pub struct Message {
-    number: u16,
-    content: MessageContent,
+    pub number: u16,
+    pub content: MessageContent,
 }
 
 /// Representation of the information that we care about within a message
+#[derive(Debug)]
 pub enum MessageContent {
     /// Initiates the key exchange
     DeviceFirst(asymmetric::PublicKey),

@@ -21,7 +21,7 @@ use proj_crypto::symmetric;
 use super::Message;
 
 #[derive(Debug)]
-pub enum ReceiveError {
+pub enum Error {
     Read(io::Error),
     NotEnoughRead(usize),
     InvalidOpcode,
@@ -29,7 +29,7 @@ pub enum ReceiveError {
     BadPacket
 }
 
-pub fn device_first <R: io::Read> (source: &mut R) -> Result<Message, ReceiveError> {
+pub fn device_first <R: io::Read> (source: &mut R) -> Result<Message, Error> {
     let (opcode, message_number) = match get_header(source) {
         Err(e) => return Err(e),
         Ok(x) => x
@@ -38,7 +38,7 @@ pub fn device_first <R: io::Read> (source: &mut R) -> Result<Message, ReceiveErr
     parse_clear_message(source, opcode, message_number)
 }
         
-pub fn server_first <R: io::Read> (source: &mut R, long_term_keys: &LongTermKeys, pk_session: &PublicKey, sk_session: &SecretKey ) -> Result<Message, ReceiveError> {
+pub fn server_first <R: io::Read> (source: &mut R, long_term_keys: &LongTermKeys, pk_session: &PublicKey, sk_session: &SecretKey ) -> Result<Message, Error> {
     let (opcode, message_number) = match get_header(source) {
         Err(e) => return Err(e),
         Ok(x) => x
@@ -48,7 +48,7 @@ pub fn server_first <R: io::Read> (source: &mut R, long_term_keys: &LongTermKeys
         Ok(Message { number: message_number, content: MessageContent::Error })
     } else if opcode == opcodes::SERVER_FIRST {
         if message_number != 0 {
-            return Err(ReceiveError::BadPacket);
+            return Err(Error::BadPacket);
         }
 
         // get the content section of the message
@@ -60,7 +60,7 @@ pub fn server_first <R: io::Read> (source: &mut R, long_term_keys: &LongTermKeys
         // separate the authentication tag from the message and check that it is correct
         let (auth_tag, the_rest) = buff.split_at(AUTH_TAG_BYTES);
         if !long_term_keys.device_verify_server_msg(pk_session, sk_session, the_rest, message_number, auth_tag) {
-            return Err(ReceiveError::Crypto);
+            return Err(Error::Crypto);
         }
 
         // parse the message
@@ -75,11 +75,11 @@ pub fn server_first <R: io::Read> (source: &mut R, long_term_keys: &LongTermKeys
 
         Ok(Message{ number: message_number, content: MessageContent::ServerFirst(pub_key, challenge_sized) })
     } else {
-        Err(ReceiveError::InvalidOpcode)
+        Err(Error::InvalidOpcode)
     }
 }
 
-pub fn device_second <R: io::Read> (source: &mut R, session_keys: &SessionKeys, challenge: &[u8]) -> Result<Message, ReceiveError> {
+pub fn device_second <R: io::Read> (source: &mut R, session_keys: &SessionKeys, challenge: &[u8]) -> Result<Message, Error> {
     assert_eq!(challenge.len(), CHALLENGE_BYTES);
     let (opcode, message_number) = match get_header(source) {
         Err(e) => return Err(e),
@@ -90,7 +90,7 @@ pub fn device_second <R: io::Read> (source: &mut R, session_keys: &SessionKeys, 
         Ok(Message{ number: message_number, content: MessageContent::Error })
     } else if opcode == opcodes::DEVICE_SECOND {
         if message_number != 1 {
-            return Err(ReceiveError::BadPacket);
+            return Err(Error::BadPacket);
         }
         
         let contents = match get_n_bytes(source, CHALLENGE_BYTES + AUTH_TAG_BYTES) {
@@ -101,14 +101,14 @@ pub fn device_second <R: io::Read> (source: &mut R, session_keys: &SessionKeys, 
         if server_verify_response(session_keys, &contents, message_number, challenge) {
             Ok(Message{ number: message_number, content: MessageContent::DeviceSecond })
         } else {
-            Err(ReceiveError::Crypto)
+            Err(Error::Crypto)
         }
     } else {
-        Err(ReceiveError::InvalidOpcode)
+        Err(Error::InvalidOpcode)
     }
 }
 
-pub fn general <R: io::Read> (source: &mut R, session_keys: &symmetric::State) -> Result<Message, ReceiveError> {
+pub fn general <R: io::Read> (source: &mut R, session_keys: &symmetric::State) -> Result<Message, Error> {
     let (opcode, message_number) = match get_header(source) {
         Err(e) => return Err(e),
         Ok(x) => x
@@ -122,7 +122,7 @@ pub fn general <R: io::Read> (source: &mut R, session_keys: &symmetric::State) -
     }
 }
 
-fn get_n_bytes<R: io::Read> (source: &mut R, n: usize) -> Result<Vec<u8>, ReceiveError> {
+fn get_n_bytes<R: io::Read> (source: &mut R, n: usize) -> Result<Vec<u8>, Error> {
     let mut buffer: Vec<u8> = Vec::with_capacity(n); // dynamically allocate our buffer
 
     // if you don't fill the buffer with blanks beforehand, read things the buffer length is 0.
@@ -131,11 +131,11 @@ fn get_n_bytes<R: io::Read> (source: &mut R, n: usize) -> Result<Vec<u8>, Receiv
     }
     
     match source.read(&mut buffer) {
-        Err(e) => Err(ReceiveError::Read(e)),
+        Err(e) => Err(Error::Read(e)),
         Ok(bytes_read) => if bytes_read == n {
             Ok(buffer)
         } else {
-            Err(ReceiveError::NotEnoughRead(bytes_read))
+            Err(Error::NotEnoughRead(bytes_read))
         }
     }
 }
@@ -147,7 +147,7 @@ fn two_bytes_to_u16(bytes: &[u8]) -> u16 {
     bytes[1] as u16 + ((bytes[0] as u16) << 8)
 }
 
-fn get_header<R: io::Read> (source: &mut R) -> Result<(u8, u16), ReceiveError> {
+fn get_header<R: io::Read> (source: &mut R) -> Result<(u8, u16), Error> {
     let header_buffer = match get_n_bytes(source, 3) { // one byte opcode, 2 byte message number
         Err(e) => return Err(e),
         Ok(buff) => buff
@@ -162,12 +162,12 @@ fn get_header<R: io::Read> (source: &mut R) -> Result<(u8, u16), ReceiveError> {
 }
     
 // error and device_first are the only two clear messages that we can receive without explicitly expecting them to arrive
-fn parse_clear_message <R: io::Read> (source: &mut R, opcode: u8, message_number: u16) -> Result<Message, ReceiveError> {
+fn parse_clear_message <R: io::Read> (source: &mut R, opcode: u8, message_number: u16) -> Result<Message, Error> {
     match opcode {
         opcodes::ERROR => Ok(Message{ number: message_number, content: MessageContent::Error, }),
         opcodes::DEVICE_FIRST => {
             if message_number != 0 {
-                return Err(ReceiveError::BadPacket);
+                return Err(Error::BadPacket);
             }
             
             let pub_key_bytes = match get_n_bytes(source, PUBLIC_KEY_BYTES) {
@@ -176,11 +176,11 @@ fn parse_clear_message <R: io::Read> (source: &mut R, opcode: u8, message_number
             };
                 Ok(Message{ number: message_number, content: MessageContent::DeviceFirst(public_key_from_slice(&pub_key_bytes).unwrap())})
         },
-        _ => Err(ReceiveError::InvalidOpcode),
+        _ => Err(Error::InvalidOpcode),
     } 
 }
 
-fn parse_crypt_message <R: io::Read> (source: &mut R, opcode: u8, message_number: u16, session_keys: &symmetric::State) -> Result<Message, ReceiveError> {
+fn parse_crypt_message <R: io::Read> (source: &mut R, opcode: u8, message_number: u16, session_keys: &symmetric::State) -> Result<Message, Error> {
     match opcode {
         opcodes::ERROR => Ok(Message{ number: message_number, content: MessageContent::Error }),
 
@@ -195,7 +195,7 @@ fn parse_crypt_message <R: io::Read> (source: &mut R, opcode: u8, message_number
             
             // test auth_tag
             if !session_keys.verify_auth_tag(auth_tag, length_bytes, message_number) {
-                return Err(ReceiveError::Crypto);
+                return Err(Error::Crypto);
             }
 
             let length = two_bytes_to_u16(length_bytes);
@@ -208,7 +208,7 @@ fn parse_crypt_message <R: io::Read> (source: &mut R, opcode: u8, message_number
 
             // decrypt
             match session_keys.authenticated_decryption(&ciphertext, message_number) {
-                None => return Err(ReceiveError::Crypto),
+                None => return Err(Error::Crypto),
                 Some(plaintext) => Ok(Message{ number: message_number, content: MessageContent::Message(plaintext) })
             }
         }
@@ -220,7 +220,7 @@ fn parse_crypt_message <R: io::Read> (source: &mut R, opcode: u8, message_number
             };
 
             match session_keys.authenticated_decryption(&ciphertext, message_number) {
-                None => return Err(ReceiveError::Crypto),
+                None => return Err(Error::Crypto),
                 Some(plaintext) => Ok(Message{ number: message_number, content: MessageContent::Ack(two_bytes_to_u16(&plaintext))})
             }
         }
@@ -229,11 +229,11 @@ fn parse_crypt_message <R: io::Read> (source: &mut R, opcode: u8, message_number
            
         opcodes::STOP => parse_constant_contents_message(source, opcode, message_number, session_keys),
 
-        _ => Err(ReceiveError::InvalidOpcode),
+        _ => Err(Error::InvalidOpcode),
     }
 }
 
-fn parse_constant_contents_message<R: io::Read> (source: &mut R, opcode: u8, message_number: u16, session_keys: &symmetric::State) -> Result<Message, ReceiveError> {
+fn parse_constant_contents_message<R: io::Read> (source: &mut R, opcode: u8, message_number: u16, session_keys: &symmetric::State) -> Result<Message, Error> {
     assert!((opcode == opcodes::REKEY ) || (opcode == opcodes::STOP));
     
     let ciphertext = match get_n_bytes(source, opcodes::CONST_MSG_LEN + AUTH_TAG_BYTES) {
@@ -242,7 +242,7 @@ fn parse_constant_contents_message<R: io::Read> (source: &mut R, opcode: u8, mes
     };
 
     let plaintext = match session_keys.authenticated_decryption(&ciphertext, message_number) {
-        None => return Err(ReceiveError::Crypto),
+        None => return Err(Error::Crypto),
         Some(p) => p,
     };
 
@@ -251,7 +251,7 @@ fn parse_constant_contents_message<R: io::Read> (source: &mut R, opcode: u8, mes
     assert_eq!(opcodes::CONST_MSG_LEN, 1);
 
     if plaintext.len() != opcodes::CONST_MSG_LEN {
-        return Err(ReceiveError::BadPacket);
+        return Err(Error::BadPacket);
     }
 
     let expected = if opcode == opcodes::REKEY {
@@ -267,7 +267,7 @@ fn parse_constant_contents_message<R: io::Read> (source: &mut R, opcode: u8, mes
             Ok(Message{ number: message_number, content: MessageContent::Stop } )
         }
     } else {
-        Err(ReceiveError::Crypto)
+        Err(Error::Crypto)
     }
 }
     

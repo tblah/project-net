@@ -14,3 +14,23 @@
     along with project-net.  If not, see http://www.gnu.org/licenses/.*/
 
 pub mod message; 
+use std::io;
+use std::io::Write;
+
+/// Log level guaranteed to be printed on debug builds
+pub const LOG_DEBUG: u8 = 100;
+
+/// Log level guaranteed to be printed on release builds
+pub const LOG_RELEASE: u8 = 10;
+
+const MIN_INCLUDED_LOG_LEVEL: u8 = LOG_DEBUG;
+
+/// 0 = highest log level
+pub fn log(msg: &str, level: u8) {
+    if level <= MIN_INCLUDED_LOG_LEVEL {
+        match io::stderr().write(&format!("{}\n",msg).as_bytes()) {
+            Err(e) => panic!("Error writing to the log: {}", e),
+            Ok(_) => (),
+        }
+    }
+}

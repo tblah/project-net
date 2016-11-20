@@ -29,3 +29,5 @@ extern crate proj_crypto;
 extern crate sodiumoxide;
 
 mod common;
+pub mod server;
+pub mod client;
