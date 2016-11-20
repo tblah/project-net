@@ -34,3 +34,29 @@ pub fn log(msg: &str, level: u8) {
         }
     }
 }
+
+/// Send an error message
+pub fn send_error<W: Write>(dest: &mut W, message_number: u16) -> bool {
+    match message::send::error(dest, message_number) {
+        Some(e) => {log(&format!("Error encountered when sending an error packet: {:?}", e), LOG_DEBUG); false},
+        None => {log("Sent error packet", LOG_DEBUG); true },
+    }
+}
+
+/// Check that a message number looks correct
+pub fn check_message_n(next_n: &mut u16, m: &message::Message) -> bool {
+    if m.number != *next_n {
+        log(&format!("Expected message number = {}. Received message number {}. Aborting.", *next_n, m.number), LOG_DEBUG);
+        return false;
+    }
+
+    if *next_n == u16::max_value() {
+        log("next_n is going to overflow!", LOG_RELEASE);
+        return false;
+    }
+
+    *next_n += 1;
+
+    true
+}
+

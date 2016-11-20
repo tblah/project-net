@@ -23,7 +23,7 @@ use super::common::message::*;
 
 /// Contains the state information for a client
 pub struct Client {
-    socket: net::TcpStream,
+    stream: net::TcpStream,
     long_keys: LongTermKeys,
     next_send_n: u16,
     next_recv_n: u16,
@@ -55,6 +55,7 @@ impl Client {
         };
 
         log("Connected successfully", LOG_DEBUG);
+        let mut expected_next_n: u16 = 0;
 
         // send device first
         let keypair = match send::device_first(&mut stream, &long_keys) {
@@ -71,10 +72,14 @@ impl Client {
             Ok(m) => m,
             Err(e) => {
                 log("Failed to receive server_first", LOG_RELEASE);
+                send_error(&mut stream, 1);
                 return Err(Error::ServerFirst(e)); },
         };
 
-        //TODO check message_n, error messages
+        if !check_message_n(&mut expected_next_n, &server_first) {
+            send_error(&mut stream, 1);
+            return Err(Error::BadMessageN);
+        }
 
         let (server_pk, challenge) = match server_first.content {
             MessageContent::ServerFirst(pk, c) => (pk, c),
@@ -91,7 +96,15 @@ impl Client {
 
         log("Key exchange complete", LOG_DEBUG);
 
-        Err(Error::BadMessageN)
+        let client = Client {
+            stream: stream,
+            long_keys: long_keys,
+            next_send_n: 2,
+            next_recv_n: expected_next_n,
+            session_keys: session_keys,
+        };
+
+        Ok(client)
     }
 
 }
