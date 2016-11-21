@@ -18,6 +18,7 @@ use proj_crypto::asymmetric::LongTermKeys;
 use super::common::*;
 use super::common::message::{receive, send, MessageContent};
 use std::io;
+use std::time::Duration;
 
 /// Container for ProtocolState to allow client unique implementations of traits
 pub struct Client {
@@ -78,6 +79,8 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Client, Error
 
     log("Key exchange complete", LOG_DEBUG);
 
+    stream.set_read_timeout(Some(Duration::from_millis(1))).unwrap(); // 1ms wait
+
     let client = ProtocolState {
         stream: stream,
         long_keys: long_keys,
@@ -103,7 +106,7 @@ impl io::Write for Client{
 /// receiving data
 impl io::Read for Client {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let ret = general_read(&mut self.state, &mut self.read_buff, true);
+        let ret = general_read(&mut self.state, &mut self.read_buff, false);
 
         if ret.is_err() {
             return ret;

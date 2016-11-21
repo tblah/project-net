@@ -272,10 +272,7 @@ fn server(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
         Ok(s) => s,
     };
 
-    let mut msg: [u8; 50] = [0; 50];
-    let n = server.read(&mut msg).unwrap();
-    let string = String::from_utf8(Vec::from(&msg[0..n])).unwrap();
-    println!("Received '{}'", string);
+    interactive(&mut server);
 }
 
 fn client(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
@@ -284,5 +281,34 @@ fn client(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
         Ok(c) => c,
     };
 
-    client.write("Hello Server".as_bytes()).unwrap();
+    interactive(&mut client);
 }       
+
+fn interactive<T: Read + Write>(channel: &mut T) -> ! {
+    let mut recv_buf = [0 as u8; 128];
+    loop {
+        let mut stdin_buf = String::new();
+        print!("Enter your message: ");
+        std::io::stdout().flush().unwrap();
+        let _ = std::io::stdin().read_line(&mut stdin_buf);
+        stdin_buf = String::from(stdin_buf.trim());
+        
+        if stdin_buf.len() > 0 {
+            channel.write(stdin_buf.as_bytes()).unwrap();
+        }
+
+        loop { // try receiving a message
+            let read_result = channel.read(&mut recv_buf);
+            if read_result.is_ok() {
+                let num_read = read_result.unwrap();
+                if num_read > 0 {
+                    println!("Received: {}", String::from_utf8(Vec::from(&recv_buf[0..num_read])).unwrap());
+                    std::io::stdout().flush().unwrap();
+                }
+            } else {
+                break;
+            }
+        }
+    }
+}
+        

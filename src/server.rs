@@ -18,6 +18,7 @@ use proj_crypto::asymmetric::LongTermKeys;
 use super::common::*;
 use super::common::message::{receive, send, MessageContent};
 use std::io;
+use std::time::Duration;
 
 /// Encapsulates ProtocolState to allow server to have it's own trait implementations
 pub struct Server {
@@ -103,6 +104,8 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Server ,Error
     };
 
     log("Key exchange completed successfully", LOG_DEBUG);
+
+    stream.set_read_timeout(Some(Duration::from_millis(1))).unwrap(); // 1ms read timeout
 
     let server = ProtocolState {
         stream: stream,
