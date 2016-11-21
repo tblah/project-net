@@ -169,7 +169,7 @@ mod tests {
         let _ = do_full_exchange();
     }
 
-    fn errorp(msg: Result<Message, Error>) -> bool {
+    fn errorp(msg: Result<Message, super::Error>) -> bool {
         match msg.unwrap().content {
             MessageContent::Error => true,
             _ => false,
@@ -205,10 +205,10 @@ mod tests {
         // device_first:
 
         // send message
-        let device_session_keypair = send::device_first(&mut channel, &device).unwrap();
+        let device_session_keypair = send::device_first(&mut channel).unwrap();
 
         // receive message
-        let device_first = receive::device_first(&mut channel.as_slice()).unwrap();
+        let device_first = receive::receive_device_first(&mut channel.as_slice()).unwrap();
         let sent_pk = match device_first.content {
             MessageContent::DeviceFirst(p) => p,
             _ => panic!("receive::device_first did not return a device first packet")
@@ -221,7 +221,7 @@ mod tests {
 
         // test sending an error to device_first
         send_error(&mut channel, 133);
-        assert!(errorp(receive::device_first(&mut channel.as_slice())));
+        assert!(errorp(receive::receive_device_first(&mut channel.as_slice())));
         channel.clear();
         
         // server_first:
@@ -230,7 +230,7 @@ mod tests {
         let (server_session_keys, server_challenge)= send::server_first(&mut channel, &server, &device_session_keypair.0).unwrap();
 
         // receive message
-        let server_first = receive::server_first(&mut channel.as_slice(), &device, &device_session_keypair.0, &device_session_keypair.1).unwrap();
+        let server_first = receive::server_first(&mut channel.as_slice(), &device, &device_session_keypair).unwrap();
         let (server_session_pub_key, challenge) = match server_first.content {
             MessageContent::ServerFirst(x, y) => (x, y),
             _ => panic!("receive::server_first returned the wrong message type!"),
@@ -243,7 +243,7 @@ mod tests {
 
         // test sending an error to server_first
         send_error(&mut channel, 7);
-        assert!(errorp(receive::server_first(&mut channel.as_slice(), &device, &device_session_keypair.0, &device_session_keypair.1)));
+        assert!(errorp(receive::server_first(&mut channel.as_slice(), &device, &device_session_keypair)));
         channel.clear();
         
         // device_second
@@ -265,7 +265,7 @@ mod tests {
 
         // test sending an error to device_second
         send_error(&mut channel, 1025);
-        assert!(errorp(receive::device_first(&mut channel.as_slice())));
+        assert!(errorp(receive::device_second(&mut channel.as_slice(), &server_session_keys, &server_challenge.as_slice())));
 
         (server_session_keys, device_session_keys)
     }
