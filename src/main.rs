@@ -267,15 +267,17 @@ fn get_keys(my_keypair_path: &str, their_pk_path: &str) -> asymmetric::LongTermK
 }
 
 fn server(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
-    let server = match server::start(socket, get_keys(my_keypair_path, their_pk_path)) {
+    let mut server = match server::start(socket, get_keys(my_keypair_path, their_pk_path)) {
         Err(e) => panic!("Server failed to start with error {:?}", e),
         Ok(s) => s,
     };
 }
 
 fn client(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
-    let client = match client::start(socket, get_keys(my_keypair_path, their_pk_path)) {
+    let mut client = match client::start(socket, get_keys(my_keypair_path, their_pk_path)) {
         Err(e) => panic!("Client failed to start with error {:?}", e),
         Ok(c) => c,
     };
+
+    client.write("test".as_bytes()).unwrap();
 }       

@@ -17,9 +17,15 @@ use std::net;
 use proj_crypto::asymmetric::LongTermKeys;
 use super::common::*;
 use super::common::message::{receive, send, MessageContent};
+use std::io;
+
+/// Encapsulates ProtocolState to allow server to have it's own trait implementations
+pub struct Server {
+    state: ProtocolState,
+}
 
 /// creates a new Server and performs a key exchange
-pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<ProtocolState,Error> {
+pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Server ,Error> {
     sodiumoxide::init();
     let listener = match net::TcpListener::bind(socket_addr) {
         Err(e) => {
@@ -105,7 +111,18 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<ProtocolState
         session_keys: session_keys,
     };
 
-    Ok(server) 
+    Ok(Server{ state:server }) 
 }
 
-                    
+/// sending data
+impl io::Write for Server{
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        general_write(&mut self.state, buf, false)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.state.stream.flush()
+    }
+}
+
+                   

@@ -17,9 +17,15 @@ use std::net;
 use proj_crypto::asymmetric::LongTermKeys;
 use super::common::*;
 use super::common::message::{receive, send, MessageContent};
+use std::io;
+
+/// Container for ProtocolState to allow client unique implementations of traits
+pub struct Client {
+    state: ProtocolState
+}
 
 /// Creates a new client and performs a key exchange
-pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<ProtocolState, Error> {
+pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Client, Error> {
     sodiumoxide::init();
     // attempt connection
     let mut stream = match net::TcpStream::connect(socket_addr) {
@@ -79,5 +85,16 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<ProtocolState
         session_keys: session_keys,
     };
 
-    Ok(client)
+    Ok(Client{ state: client })
+}
+
+/// sending data
+impl io::Write for Client{
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        general_write(&mut self.state, buf, true)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.state.stream.flush()
+    }
 }

@@ -43,6 +43,49 @@ pub struct ProtocolState {
     pub session_keys: SessionKeys,
 }
 
+impl ProtocolState {
+    fn next_message_number(&mut self) -> u16 {
+        if self.next_send_n == u16::max_value() {
+            let n = self.next_message_number();
+            send_error(&mut self.stream, n);
+            log("Panicked to prevent the message number from overflowing", LOG_RELEASE);
+            panic!("Message number is about to overflow");
+        }
+
+        let ret = self.next_send_n;
+        self.next_send_n+= 1;
+        ret
+    }
+}
+
+/// Write for both server and client
+pub fn general_write(state: &mut ProtocolState, buf: &[u8], from_device: bool) -> io::Result<usize> {
+    if buf.len() > (u16::max_value() as usize) {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "The buffer was too long for a single message packet. Splitting it is not yet implemented. Please keep to buf.len() <= u16::max_value()"));
+    }
+
+    let message_n = state.next_message_number();
+    let ref symmetric_state = {
+        if from_device {
+            &state.session_keys.from_device
+        } else {
+            &state.session_keys.from_server
+        }
+    };
+
+    match message::send::message(&mut state.stream, buf, symmetric_state, message_n) {
+        None => (),
+        Some(error) => {
+            match error {
+                message::Error::Write(ioerror) => return Err(ioerror),
+                _ => return Err(io::Error::new(io::ErrorKind::Other, "error sending the message")),
+            }
+        }
+    }
+
+    log("Message sent successfully", LOG_DEBUG);
+    return Ok(buf.len());
+}
 
 /// Log level guaranteed to be printed on debug builds
 pub const LOG_DEBUG: u8 = 100;
