@@ -53,8 +53,67 @@ impl ProtocolState {
         }
 
         let ret = self.next_send_n;
-        self.next_send_n+= 1;
+        self.next_send_n += 1;
         ret
+    }
+
+    fn check_recv_number(&mut self, num: u16) -> bool {
+        if self.next_recv_n != num {
+            let n = self.next_message_number();
+            send_error(&mut self.stream, n);
+            log("Received an out of order message number", LOG_DEBUG);
+            return false;
+        }
+        
+        if self.next_recv_n == u16::max_value() {
+            let n = self.next_message_number();
+            send_error(&mut self.stream, n);
+            log("Failing receive message number check because the counter is about to overflow", LOG_RELEASE);
+            return false;
+        }
+
+        self.next_recv_n += 1;
+        true
+    }
+}
+
+/// Read for both the server and client
+pub fn general_read(state: &mut ProtocolState, buf: &mut Vec<u8>, from_device: bool) -> io::Result<usize> {
+    let m = {
+        let ref symmetric_state = {
+        if from_device {
+                &state.session_keys.from_device
+            } else {
+                &state.session_keys.from_server
+            }
+        };
+
+        let m = match message::receive::general(&mut state.stream, symmetric_state) {
+            Ok(m) => m,
+            Err(message_error) => {
+                match message_error {
+                    message::Error::Read(ioerror) => return Err(ioerror),
+                    _ => return Err(io::Error::new(io::ErrorKind::Other, "error receiving the message")),
+                }
+            }
+        };
+        m
+    }; // some messing with scope so that state is no-longer borrowed by symmetric_state
+
+    if !state.check_recv_number(m.number) {
+        return Err(io::Error::new(io::ErrorKind::Other, "received the wrong message number"));
+    }
+
+    match m.content {
+        message::MessageContent::Message(mut v) => {
+            buf.append(&mut v);
+            log("Received a message packet", LOG_DEBUG);
+            return Ok(v.len());
+        },
+        _ => {
+            log("Received unimplemented message!", LOG_RELEASE);
+            return Ok(0);
+        },
     }
 }
 

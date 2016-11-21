@@ -21,7 +21,8 @@ use std::io;
 
 /// Container for ProtocolState to allow client unique implementations of traits
 pub struct Client {
-    state: ProtocolState
+    state: ProtocolState,
+    read_buff: Vec<u8>,
 }
 
 /// Creates a new client and performs a key exchange
@@ -85,7 +86,7 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Client, Error
         session_keys: session_keys,
     };
 
-    Ok(Client{ state: client })
+    Ok(Client{ state: client, read_buff: Vec::new() })
 }
 
 /// sending data
@@ -96,5 +97,30 @@ impl io::Write for Client{
 
     fn flush(&mut self) -> io::Result<()> {
         self.state.stream.flush()
+    }
+}
+
+/// receiving data
+impl io::Read for Client {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let ret = general_read(&mut self.state, &mut self.read_buff, true);
+
+        if ret.is_err() {
+            return ret;
+        }
+
+        let num_elements = {
+            if buf.len() > self.read_buff.len() {
+                self.read_buff.len()
+            } else {
+                buf.len()
+            }
+        };
+
+        for i in 0..num_elements {
+            buf[i] = self.read_buff.remove(0);
+        }
+
+        Ok(num_elements)
     }
 }

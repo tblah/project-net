@@ -22,6 +22,7 @@ use std::io;
 /// Encapsulates ProtocolState to allow server to have it's own trait implementations
 pub struct Server {
     state: ProtocolState,
+    read_buff: Vec<u8>,
 }
 
 /// creates a new Server and performs a key exchange
@@ -111,11 +112,11 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Server ,Error
         session_keys: session_keys,
     };
 
-    Ok(Server{ state:server }) 
+    Ok(Server{ state:server, read_buff: Vec::new() }) 
 }
 
 /// sending data
-impl io::Write for Server{
+impl io::Write for Server {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         general_write(&mut self.state, buf, false)
     }
@@ -125,4 +126,30 @@ impl io::Write for Server{
     }
 }
 
-                   
+/// receiving data
+impl io::Read for Server {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let ret = general_read(&mut self.state, &mut self.read_buff, true);
+
+        if ret.is_err() {
+            return ret;
+        }
+
+        let num_elements = {
+            if buf.len() > self.read_buff.len() {
+                self.read_buff.len()
+            } else {
+                buf.len()
+            }
+        };
+
+        for i in 0..num_elements {
+            buf[i] = self.read_buff.remove(0);
+        }
+
+        Ok(num_elements)
+    }
+}
+                
+
+

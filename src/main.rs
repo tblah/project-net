@@ -271,6 +271,11 @@ fn server(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
         Err(e) => panic!("Server failed to start with error {:?}", e),
         Ok(s) => s,
     };
+
+    let mut msg: [u8; 50] = [0; 50];
+    let n = server.read(&mut msg).unwrap();
+    let string = String::from_utf8(Vec::from(&msg[0..n])).unwrap();
+    println!("Received '{}'", string);
 }
 
 fn client(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
@@ -279,5 +284,5 @@ fn client(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
         Ok(c) => c,
     };
 
-    client.write("test".as_bytes()).unwrap();
+    client.write("Hello Server".as_bytes()).unwrap();
 }       
