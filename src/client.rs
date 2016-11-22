@@ -21,7 +21,7 @@ use std::io;
 use std::time::Duration;
 use std::net::Shutdown;
 
-/// Container for ProtocolState to allow client unique implementations of traits
+/// Structure containing the state for a running client
 pub struct Client {
     state: ProtocolState,
     read_buff: Vec<u8>,
@@ -82,8 +82,6 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Client, Error
 
     log("Key exchange complete", LOG_DEBUG);
 
-    //stream.set_read_timeout(Some(Duration::from_millis(1))).unwrap(); // 1ms wait
-
     let client = ProtocolState {
         stream: stream,
         long_keys: long_keys,
@@ -96,7 +94,7 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Client, Error
     Ok(Client{ state: client, read_buff: Vec::new() })
 }
 
-/// sending data
+/// Sending data
 impl io::Write for Client{
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         general_write(&mut self.state, buf)
@@ -107,7 +105,7 @@ impl io::Write for Client{
     }
 }
 
-/// receiving data
+/// Receiving data
 impl io::Read for Client {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let ret = general_read(&mut self.state, &mut self.read_buff);
@@ -133,12 +131,12 @@ impl io::Read for Client {
 }
 
 impl Client {
-    /// don't block after a timeout on IO
+    /// Give up on IO after blocking for a timeout
     pub fn blocking_off(&mut self, milliseconds: u64) {
         self.state.stream.set_read_timeout(Some(Duration::from_millis(milliseconds))).unwrap(); // 1ms read timeout
     }
 
-    /// block indefinably for IO
+    /// Block indefinably for IO
     pub fn blocking_on(&mut self) {
         self.state.stream.set_read_timeout(None).unwrap();
     }

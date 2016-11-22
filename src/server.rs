@@ -21,7 +21,7 @@ use std::io;
 use std::time::Duration;
 use std::net::Shutdown;
 
-/// Encapsulates ProtocolState to allow server to have it's own trait implementations
+/// Structure containing state information for the server
 pub struct Server {
     state: ProtocolState,
     read_buff: Vec<u8>,
@@ -125,18 +125,18 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Server ,Error
 }
 
 impl Server {
-    /// don't block after a timeout on IO
+    /// Give up on IO after a timeout
     pub fn blocking_off(&mut self, milliseconds: u64) {
         self.state.stream.set_read_timeout(Some(Duration::from_millis(milliseconds))).unwrap(); // 1ms read timeout
     }
 
-    /// block indefinably for IO
+    /// Block indefinably for IO
     pub fn blocking_on(&mut self) {
         self.state.stream.set_read_timeout(None).unwrap();
     }
 }
 
-/// sending data
+/// Sending data
 impl io::Write for Server {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         general_write(&mut self.state, buf)
@@ -147,7 +147,7 @@ impl io::Write for Server {
     }
 }
 
-/// receiving data
+/// Receiving data
 impl io::Read for Server {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let ret = general_read(&mut self.state, &mut self.read_buff);

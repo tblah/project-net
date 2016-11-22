@@ -4,6 +4,8 @@
 //! 
 //! The cryptography in proj_crypto **has not been reviewed**.
 //!
+//! For example usage see the server_echo() test in lib.rs and the interactive demo in main.rs.
+//!
 //! This project is licenced under the terms of the GNU General Public Licence as published by the Free Software Foundation, either version 3 of the licence, or (at your option) any later version.
 
 /*  This file is part of project-net.
