@@ -271,6 +271,7 @@ fn server(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
         Err(e) => panic!("Server failed to start with error {:?}", e),
         Ok(s) => s,
     };
+    server.blocking_off(1);
 
     interactive(&mut server);
 }
@@ -280,6 +281,7 @@ fn client(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
         Err(e) => panic!("Client failed to start with error {:?}", e),
         Ok(c) => c,
     };
+    client.blocking_off(1);
 
     interactive(&mut client);
 }       

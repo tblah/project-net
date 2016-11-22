@@ -32,8 +32,7 @@ mod common;
 pub mod server;
 pub mod client;
 
-// not currently working
-/*#[cfg(test)]
+#[cfg(test)]
 mod test {
     use super::server;
     use super::client;
@@ -43,11 +42,29 @@ mod test {
     use std::thread;
     use std::time::Duration;
 
+    const MESSAGE_SIZE: usize = 256;
+
+    fn server_echo(server_long_keys: proj_crypto::asymmetric::LongTermKeys) {
+        let mut server = server::start("127.0.0.1:1024", server_long_keys).unwrap();
+        server.blocking_on(); 
+
+        let mut buf: [u8; MESSAGE_SIZE] = [0; MESSAGE_SIZE];
+        loop {
+            thread::sleep(Duration::from_millis(10));
+            let n = match server.read(&mut buf) {
+                Ok(n) => n,
+                Err(e) => panic!("{:?}", e), // errors will be detected by the client. This error could well be that the client has send Stop
+            };
+
+            if n > 0 {
+                server.write(&buf[0..n]).unwrap();
+            }
+        }
+    }
+    
     #[test]
     #[ignore] // because we are opening ports on the loop back and it might fail on some configurations
-    fn random_read_write() {
-        const MESSAGE_SIZE: usize = 256;
-
+    fn echo() {
         let server_keypair = proj_crypto::asymmetric::gen_keypair();
         let client_keypair = proj_crypto::asymmetric::gen_keypair();
 
@@ -63,17 +80,20 @@ mod test {
             their_public_key: server_keypair.0,
         };
 
-        let server_thread = thread::spawn(|| { server::start("127.0.0.1:1024", server_longkeys).unwrap() }); // starts listening
+        let _ = thread::spawn(|| { server_echo(server_longkeys) }); // starts listening
         thread::sleep(Duration::from_millis(10));
 
         let mut client = client::start("127.0.0.1:1024", client_longkeys).unwrap(); // key exchange happens here
-        let mut server = server_thread.join().unwrap();
+        client.blocking_on();
 
         let client_msg = sodiumoxide::randombytes::randombytes(MESSAGE_SIZE);
-        let mut server_recv = [0 as u8; MESSAGE_SIZE];
+        let mut recv_buf = [0 as u8; MESSAGE_SIZE];
         client.write(&client_msg).unwrap();
-        server.read(&mut server_recv).unwrap(); // error here
-        assert_eq!(&server_recv[0..MESSAGE_SIZE], client_msg.as_slice());
+        thread::sleep(Duration::from_millis(20));
+        client.read(&mut recv_buf).unwrap();
+
+        // don't use assert_eq! because we don't want it printing a load of useless entropy
+        assert!(&recv_buf[0..MESSAGE_SIZE] == client_msg.as_slice());
     }
-}*/
+}
         

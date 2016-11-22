@@ -112,8 +112,6 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Server ,Error
 
     log("Key exchange completed successfully", LOG_DEBUG);
 
-    stream.set_read_timeout(Some(Duration::from_millis(1))).unwrap(); // 1ms read timeout
-
     let server = ProtocolState {
         stream: stream,
         long_keys: long_keys,
@@ -124,6 +122,18 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Server ,Error
     };
 
     Ok(Server{ state:server, read_buff: Vec::new() }) 
+}
+
+impl Server {
+    /// don't block after a timeout on IO
+    pub fn blocking_off(&mut self, milliseconds: u64) {
+        self.state.stream.set_read_timeout(Some(Duration::from_millis(milliseconds))).unwrap(); // 1ms read timeout
+    }
+
+    /// block indefinably for IO
+    pub fn blocking_on(&mut self) {
+        self.state.stream.set_read_timeout(None).unwrap();
+    }
 }
 
 /// sending data
