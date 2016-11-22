@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["start","Creates a new client and performs a key exchange"]],"struct":[["Client","Structure containing the state for a running client"]]});
