@@ -206,7 +206,7 @@ fn parse_crypt_message <R: io::Read> (source: &mut R, opcode: u8, message_number
             }
         }
 
-        opcodes::ACK => {
+        /*opcodes::ACK => {
             let ciphertext = match get_n_bytes(source, 2 + AUTH_TAG_BYTES) { // u16 message number + the authentication tag on the message number
                 Err(e) => return Err(e),
                 Ok(x) => x,
@@ -216,9 +216,9 @@ fn parse_crypt_message <R: io::Read> (source: &mut R, opcode: u8, message_number
                 None => return Err(Error::Crypto),
                 Some(plaintext) => Ok(Message{ number: message_number, content: MessageContent::Ack(two_bytes_to_u16(&plaintext))})
             }
-        }
+        }*/
             
-        opcodes::REKEY => parse_constant_contents_message(source, opcode, message_number, session_keys),
+        //opcodes::REKEY => parse_constant_contents_message(source, opcode, message_number, session_keys),
            
         opcodes::STOP => parse_constant_contents_message(source, opcode, message_number, session_keys),
 
@@ -227,7 +227,7 @@ fn parse_crypt_message <R: io::Read> (source: &mut R, opcode: u8, message_number
 }
 
 fn parse_constant_contents_message<R: io::Read> (source: &mut R, opcode: u8, message_number: u16, session_keys: &symmetric::State) -> Result<Message, Error> {
-    assert!((opcode == opcodes::REKEY ) || (opcode == opcodes::STOP));
+    assert!(/*(opcode == opcodes::REKEY ) ||*/ (opcode == opcodes::STOP));
     
     let ciphertext = match get_n_bytes(source, opcodes::CONST_MSG_LEN + AUTH_TAG_BYTES) {
         Err(e) => return Err(e),
@@ -247,18 +247,18 @@ fn parse_constant_contents_message<R: io::Read> (source: &mut R, opcode: u8, mes
         return Err(Error::BadPacket);
     }
 
-    let expected = if opcode == opcodes::REKEY {
+    let expected = /*if opcode == opcodes::REKEY {
         opcodes::REKEY_CONTENTS
-    } else {
+    } else {*/
         opcodes::STOP_CONTENTS
-    };
+    /*}*/;
 
     if plaintext[0] == expected {
-        if opcode == opcodes::REKEY {
+    /*    if opcode == opcodes::REKEY {
             Ok(Message{ number: message_number, content: MessageContent::ReKey } )
-        } else {
+        } else {*/
             Ok(Message{ number: message_number, content: MessageContent::Stop } )
-        }
+        //}
     } else {
         Err(Error::Crypto)
     }

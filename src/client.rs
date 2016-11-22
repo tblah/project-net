@@ -19,6 +19,7 @@ use super::common::*;
 use super::common::message::{receive, send, MessageContent};
 use std::io;
 use std::time::Duration;
+use std::net::Shutdown;
 
 /// Container for ProtocolState to allow client unique implementations of traits
 pub struct Client {
@@ -56,11 +57,13 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Client, Error
         Err(e) => {
             log("Failed to receive server_first", LOG_RELEASE);
             send_error(&mut stream, 1);
+            stream.shutdown(Shutdown::Both).unwrap();
             return Err(Error::ServerFirst(e)); },
     };
 
     if !check_message_n(&mut expected_next_n, &server_first) {
         send_error(&mut stream, 1);
+        stream.shutdown(Shutdown::Both).unwrap();
         return Err(Error::BadMessageN);
     }
 
@@ -87,6 +90,7 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Client, Error
         next_send_n: 2,
         next_recv_n: expected_next_n,
         session_keys: session_keys,
+        send_as_device: true,
     };
 
     Ok(Client{ state: client, read_buff: Vec::new() })
@@ -95,7 +99,7 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Client, Error
 /// sending data
 impl io::Write for Client{
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        general_write(&mut self.state, buf, true)
+        general_write(&mut self.state, buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -106,7 +110,7 @@ impl io::Write for Client{
 /// receiving data
 impl io::Read for Client {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let ret = general_read(&mut self.state, &mut self.read_buff, false);
+        let ret = general_read(&mut self.state, &mut self.read_buff);
 
         if ret.is_err() {
             return ret;

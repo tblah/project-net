@@ -19,6 +19,7 @@ use std::io::Write;
 use std::net::TcpStream;
 use std::net::Shutdown;
 use proj_crypto::asymmetric::{LongTermKeys, SessionKeys};
+use proj_crypto::symmetric;
 
 /// Errors returned by the client or server
 #[derive(Debug)]
@@ -41,14 +42,35 @@ pub struct ProtocolState {
     pub next_send_n: u16,
     pub next_recv_n: u16,
     pub session_keys: SessionKeys,
+    pub send_as_device: bool,
 }
 
+impl Drop for ProtocolState {
+    fn drop(&mut self) {
+        {
+            let n = self.next_message_number();
+
+            let ref session_keys = {
+                if self.send_as_device {
+                    &self.session_keys.from_device
+                } else {
+                    &self.session_keys.from_server
+                }
+            };
+
+            message::send::stop(&mut self.stream, session_keys, n);
+        } // stop borrowing self
+        self.close();
+    }
+}
+        
 impl ProtocolState {
     fn next_message_number(&mut self) -> u16 {
         if self.next_send_n == u16::max_value() {
             let n = self.next_message_number();
             send_error(&mut self.stream, n);
             log("Panicked to prevent the message number from overflowing", LOG_RELEASE);
+            self.close();
             panic!("Message number is about to overflow");
         }
 
@@ -75,13 +97,22 @@ impl ProtocolState {
         self.next_recv_n += 1;
         true
     }
+
+    fn close(&mut self) {
+        let _ = self.stream.shutdown(Shutdown::Both);
+        // force the session keys out of scope so they are drop()'ed
+        self.session_keys = SessionKeys {
+            from_device: symmetric::State::new(&[0; 32], &[0; 32]),
+            from_server: symmetric::State::new(&[0; 32], &[0; 32]),
+        };
+    }
 }
 
 /// Read for both the server and client
-pub fn general_read(state: &mut ProtocolState, buf: &mut Vec<u8>, from_device: bool) -> io::Result<usize> {
+pub fn general_read(state: &mut ProtocolState, buf: &mut Vec<u8>) -> io::Result<usize> {
     let m = {
         let ref symmetric_state = {
-        if from_device {
+        if !state.send_as_device {
                 &state.session_keys.from_device
             } else {
                 &state.session_keys.from_server
@@ -110,6 +141,16 @@ pub fn general_read(state: &mut ProtocolState, buf: &mut Vec<u8>, from_device: b
             log("Received a message packet", LOG_DEBUG);
             return Ok(v.len());
         },
+        message::MessageContent::Error => {
+            state.close();
+            log("Received error packet", LOG_RELEASE);
+            return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "Received error packet"));
+        },
+        message::MessageContent::Stop => {
+            state.close();
+            log("Received a stop packet. Closing the connection.", LOG_DEBUG);
+            return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "Recived stop packet"));
+        },
         _ => {
             log("Received unimplemented message!", LOG_RELEASE);
             return Ok(0);
@@ -118,14 +159,14 @@ pub fn general_read(state: &mut ProtocolState, buf: &mut Vec<u8>, from_device: b
 }
 
 /// Write for both server and client
-pub fn general_write(state: &mut ProtocolState, buf: &[u8], from_device: bool) -> io::Result<usize> {
+pub fn general_write(state: &mut ProtocolState, buf: &[u8]) -> io::Result<usize> {
     if buf.len() > (u16::max_value() as usize) {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "The buffer was too long for a single message packet. Splitting it is not yet implemented. Please keep to buf.len() <= u16::max_value()"));
     }
 
     let message_n = state.next_message_number();
     let ref symmetric_state = {
-        if from_device {
+        if state.send_as_device {
             &state.session_keys.from_device
         } else {
             &state.session_keys.from_server
@@ -170,8 +211,6 @@ pub fn send_error(dest: &mut TcpStream, message_number: u16) -> bool {
         Some(e) => {log(&format!("Error encountered when sending an error packet: {:?}", e), LOG_DEBUG); false},
         None => {log("Sent error packet", LOG_DEBUG); true },
     };
-
-    dest.shutdown(Shutdown::Both).unwrap();
 
     ret
 }

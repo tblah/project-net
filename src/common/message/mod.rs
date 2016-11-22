@@ -53,11 +53,11 @@ pub enum MessageContent {
     /// Actually send data from one party to the other.
     Message(Vec<u8>),
 
-    /// Acknowledge receipt of a message
-    Ack(u16),
+//    /// Acknowledge receipt of a message
+//    Ack(u16),
 
-    /// From server to client requesting a new key exchange. If a device wants to do this (or to respond to this) it closes this session and immediately begins a new session (and key exchange) immediately.
-    ReKey,
+//    /// From server to client requesting a new key exchange. If a device wants to do this (or to respond to this) it closes this session and immediately begins a new session (and key exchange) immediately.
+//    ReKey,
 
     /// Tear down the connection without reporting an error. Requires authentication so that a man in the middle can't downgrade an error to a stop to avoid logging.
     Stop,
@@ -109,7 +109,7 @@ mod tests {
         assert_eq!(received_msg, message);
     }
 
-    #[test]
+/*    #[test]
     fn ack() {
         let (server_keys, device_keys) = do_full_exchange();
 
@@ -125,9 +125,9 @@ mod tests {
 
         assert_eq!(ack.number, 8);
         assert_eq!(ack_num, 2003);
-    }
+    }*/
 
-    #[test]
+/*    #[test]
     fn rekey() {
         let (server_keys, device_keys) = do_full_exchange();
 
@@ -143,7 +143,7 @@ mod tests {
         };
 
         assert_eq!(rekey.number, 5);
-    }
+    }*/
 
     #[test]
     fn stop() {

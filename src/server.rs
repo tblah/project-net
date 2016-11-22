@@ -19,6 +19,7 @@ use super::common::*;
 use super::common::message::{receive, send, MessageContent};
 use std::io;
 use std::time::Duration;
+use std::net::Shutdown;
 
 /// Encapsulates ProtocolState to allow server to have it's own trait implementations
 pub struct Server {
@@ -55,12 +56,14 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Server ,Error
         Err(e) => {
             log(&format!("Error receiving first message: {:?}", e), LOG_RELEASE);
             send_error(&mut stream, 0);
+            stream.shutdown(Shutdown::Both).unwrap();
             return Err(Error::DeviceFirst(e)); },
         Ok(m) => m,
     };
 
     if !check_message_n(&mut expected_next_n, &m) {
         send_error(&mut stream, 0);
+        stream.shutdown(Shutdown::Both).unwrap();
         return Err(Error::BadMessageN);
     }
 
@@ -68,6 +71,7 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Server ,Error
     let device_ephemeral_pk = match m.content {
         MessageContent::DeviceFirst(pk) => pk,
         _ => { send_error(&mut stream, 0);
+               stream.shutdown(Shutdown::Both).unwrap();
                return Err(Error::DeviceFirst(message::Error::InvalidOpcode)); },
     };
 
@@ -88,18 +92,21 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Server ,Error
         Err(e) => {
             log("Error validating device response", LOG_RELEASE);
             send_error(&mut stream, 1);
+            stream.shutdown(Shutdown::Both).unwrap();
             return Err(Error::DeviceSecond(e)); },
         Ok(m) => m,
     };
 
     if !check_message_n(&mut expected_next_n, &device_second) {
         send_error(&mut stream, 1);
+        stream.shutdown(Shutdown::Both).unwrap();
         return Err(Error::BadMessageN);
     }
 
     match device_second.content {
         MessageContent::DeviceSecond => (),
         _ => { send_error(&mut stream, 1);
+               stream.shutdown(Shutdown::Both).unwrap();
                return Err(Error::DeviceFirst(message::Error::InvalidOpcode)); },
     };
 
@@ -113,6 +120,7 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Server ,Error
         next_send_n: 1,
         next_recv_n: expected_next_n,
         session_keys: session_keys,
+        send_as_device: false,
     };
 
     Ok(Server{ state:server, read_buff: Vec::new() }) 
@@ -121,7 +129,7 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Server ,Error
 /// sending data
 impl io::Write for Server {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        general_write(&mut self.state, buf, false)
+        general_write(&mut self.state, buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -132,7 +140,7 @@ impl io::Write for Server {
 /// receiving data
 impl io::Read for Server {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let ret = general_read(&mut self.state, &mut self.read_buff, true);
+        let ret = general_read(&mut self.state, &mut self.read_buff);
 
         if ret.is_err() {
             return ret;

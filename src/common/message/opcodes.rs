@@ -12,8 +12,6 @@
     You should have received a copy of the GNU General Public License
 along with project-net.  If not, see http://www.gnu.org/licenses/.*/
 
-#[allow(dead_code)]
-
 // note: these are considered in ranges:
 // range 1: stuff that doesn't need crypto
 pub const ERROR: u8 = 0;
@@ -24,13 +22,15 @@ pub const MAX_NOCRYPT: u8 = SERVER_FIRST;
 // range 2: stuff that does need crypto
 pub const DEVICE_SECOND: u8 = 3;
 pub const MESSAGE: u8 = 4;
-pub const ACK: u8 = 5;
-pub const REKEY: u8 = 6;
+//pub const ACK: u8 = 5;
+//pub const REKEY: u8 = 6;
 pub const STOP: u8 = 7;
+
+#[allow(dead_code)]
 pub const MAX_OPCODE: u8 = STOP;
 
 // contents of constant messages
 // don't change the type of these without updating message.rs::parse_constant_contents_message()
 pub const CONST_MSG_LEN: usize = 1;
 pub const STOP_CONTENTS: u8 = 0;
-pub const REKEY_CONTENTS: u8 = 1;
+//pub const REKEY_CONTENTS: u8 = 1;

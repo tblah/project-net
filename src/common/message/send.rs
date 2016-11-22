@@ -77,16 +77,16 @@ pub fn message<W: io::Write>(dest: &mut W, msg: &[u8], session_keys: &symmetric:
     write_bytes(dest, &message)
 }
 
-pub fn ack<W: io::Write>(dest: &mut W, ack_num: u16, session_keys: &symmetric::State, message_number: u16) -> Option<Error> {
+/*pub fn ack<W: io::Write>(dest: &mut W, ack_num: u16, session_keys: &symmetric::State, message_number: u16) -> Option<Error> {
     const_size_encrypted(dest, opcodes::ACK, &u16_to_bytes(ack_num), session_keys, message_number)
-}
+}*/
 
-pub fn rekey<W: io::Write>(dest: &mut W, session_keys: &symmetric::State, message_number: u16) -> Option<Error> {
+/*pub fn rekey<W: io::Write>(dest: &mut W, session_keys: &symmetric::State, message_number: u16) -> Option<Error> {
     // too lazy to implement this to be that generalised
     assert_eq!(opcodes::CONST_MSG_LEN, 1);
 
     const_size_encrypted(dest, opcodes::REKEY, &[opcodes::REKEY_CONTENTS], session_keys, message_number)
-}
+}*/
 
 pub fn stop<W: io::Write>(dest: &mut W, session_keys: &symmetric::State, message_number: u16) -> Option<Error> {
     // too lazy to implement this to be that generalised
