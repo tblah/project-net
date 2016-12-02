@@ -153,7 +153,7 @@ fn key_gen(file_path: &str) {
     let _ = file.write(b"PK: ").unwrap();
     let _ = file.write(&to_utf8_hex(&pk[..])).unwrap();
     let _ = file.write(b"\nSK: ").unwrap();
-    let _ = file.write(&to_utf8_hex(&sk[..])).unwrap();
+    let _ = file.write(&to_utf8_hex(&sk.seed[..])).unwrap();
     let _ = file.write(b"\n").unwrap(); // just looks a bit nicer if someone curious looks at the file
 
     // write public key file
