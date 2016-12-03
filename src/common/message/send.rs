@@ -16,13 +16,13 @@ use super::opcodes;
 use super::Error;
 use super::Keypair;
 use std::io;
-use proj_crypto::asymmetric;
+use proj_crypto::asymmetric::key_exchange;
 use proj_crypto::symmetric;
 
 pub fn device_first<W: io::Write>(dest: &mut W) -> Result<Keypair, Error> {
     let mut message = construct_header(opcodes::DEVICE_FIRST, 0);
     
-    let keypair = asymmetric::device_first();
+    let keypair = key_exchange::device_first();
 
     let pubkey_bytes = &keypair.0.clone()[..];
 
@@ -35,7 +35,7 @@ pub fn device_first<W: io::Write>(dest: &mut W) -> Result<Keypair, Error> {
 }
 
 /// returns the session keys and the random challenge
-pub fn server_first<W: io::Write>(dest: &mut W, long_term_keys: &asymmetric::LongTermKeys, device_session_pk: &asymmetric::PublicKey) -> Result<(asymmetric::SessionKeys, Vec<u8>), Error> {
+pub fn server_first<W: io::Write>(dest: &mut W, long_term_keys: &key_exchange::LongTermKeys, device_session_pk: &key_exchange::PublicKey) -> Result<(key_exchange::SessionKeys, Vec<u8>), Error> {
     let mut message = construct_header(opcodes::SERVER_FIRST, 0);
 
     let (challenge, session_keys, auth_tag,mut plaintext) = long_term_keys.server_first(device_session_pk, 0);
@@ -49,7 +49,7 @@ pub fn server_first<W: io::Write>(dest: &mut W, long_term_keys: &asymmetric::Lon
     }
 }
 
-pub fn device_second<W: io::Write>(dest: &mut W, long_term_keys: &asymmetric::LongTermKeys, server_session_pk: &asymmetric::PublicKey, challenge: &[u8], session_keypair: &Keypair) -> Result<asymmetric::SessionKeys, Error> {
+pub fn device_second<W: io::Write>(dest: &mut W, long_term_keys: &key_exchange::LongTermKeys, server_session_pk: &key_exchange::PublicKey, challenge: &[u8], session_keypair: &Keypair) -> Result<key_exchange::SessionKeys, Error> {
     let mut message = construct_header(opcodes::DEVICE_SECOND, 1);
 
     let (session_keys, mut ciphertext) = long_term_keys.device_second(server_session_pk, challenge, &session_keypair.0, &session_keypair.1, 1);

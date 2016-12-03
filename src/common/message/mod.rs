@@ -12,10 +12,10 @@
     You should have received a copy of the GNU General Public License
 along with project-net.  If not, see http://www.gnu.org/licenses/.*/
 
-use proj_crypto::asymmetric;
+use proj_crypto::asymmetric::key_exchange;
 use std::io;
 
-pub type Keypair = (asymmetric::PublicKey, asymmetric::SecretKey);
+pub type Keypair = (key_exchange::PublicKey, key_exchange::SecretKey);
 
 #[derive(Debug)]
 pub struct Message {
@@ -38,10 +38,10 @@ pub enum Error {
 #[derive(Debug)]
 pub enum MessageContent {
     /// Initiates the key exchange
-    DeviceFirst(asymmetric::PublicKey),
+    DeviceFirst(key_exchange::PublicKey),
 
     /// Second message in the key exchange
-    ServerFirst(asymmetric::PublicKey, [u8; asymmetric::CHALLENGE_BYTES]),
+    ServerFirst(key_exchange::PublicKey, [u8; key_exchange::CHALLENGE_BYTES]),
 
     /// Final message in a successful key exchange
     DeviceSecond,
@@ -76,7 +76,7 @@ mod tests {
     use super::MessageContent;
     extern crate sodiumoxide;
     use sodiumoxide::randombytes;
-    use proj_crypto::asymmetric;
+    use proj_crypto::asymmetric::key_exchange;
 
     #[test]
     fn error_general() {
@@ -181,19 +181,19 @@ mod tests {
     }
 
     // also tests error packets
-    fn do_full_exchange() -> (asymmetric::SessionKeys, asymmetric::SessionKeys) {
+    fn do_full_exchange() -> (key_exchange::SessionKeys, key_exchange::SessionKeys) {
         sodiumoxide::init();
 
-        let (pk_device, sk_device) = asymmetric::gen_keypair();
-        let (pk_server, sk_server) = asymmetric::gen_keypair();
+        let (pk_device, sk_device) = key_exchange::gen_keypair();
+        let (pk_server, sk_server) = key_exchange::gen_keypair();
 
-        let device = asymmetric::LongTermKeys {
+        let device = key_exchange::LongTermKeys {
             my_public_key: pk_device.clone(),
             my_secret_key: sk_device,
             their_public_key: pk_server.clone(),
         };
 
-        let server = asymmetric::LongTermKeys {
+        let server = key_exchange::LongTermKeys {
             my_public_key: pk_server.clone(),
             my_secret_key: sk_server,
             their_public_key: pk_device.clone(),

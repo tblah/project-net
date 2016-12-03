@@ -23,7 +23,7 @@ use std::process;
 use std::fs::OpenOptions;
 use std::fs;
 use std::os::unix::fs::OpenOptionsExt;
-use proj_crypto::asymmetric;
+use proj_crypto::asymmetric::key_exchange;
 use std::io::Write;
 use std::io::Read;
 use std::io::Seek;
@@ -147,13 +147,13 @@ fn key_gen(file_path: &str) {
     };
 
     sodiumoxide::init();
-    let (pk, sk) = asymmetric::gen_keypair();
+    let (pk, sk) = key_exchange::gen_keypair();
 
     // unwraps to make sure we panic if something doesn't work
     let _ = file.write(b"PK: ").unwrap();
     let _ = file.write(&to_utf8_hex(&pk[..])).unwrap();
     let _ = file.write(b"\nSK: ").unwrap();
-    let _ = file.write(&to_utf8_hex(&sk.seed[..])).unwrap();
+    let _ = file.write(&to_utf8_hex(&sk[..])).unwrap();
     let _ = file.write(b"\n").unwrap(); // just looks a bit nicer if someone curious looks at the file
 
     // write public key file
@@ -244,7 +244,7 @@ fn open_or_panic(path: &str) -> fs::File {
 }
 
 /// returns (my_pk, my_sk, their_pk)
-fn get_keys(my_keypair_path: &str, their_pk_path: &str) -> asymmetric::LongTermKeys {
+fn get_keys(my_keypair_path: &str, their_pk_path: &str) -> key_exchange::LongTermKeys {
     let my_keypair_file = open_or_panic(my_keypair_path);
     let their_pk_file = open_or_panic(their_pk_path);
 
@@ -255,11 +255,11 @@ fn get_keys(my_keypair_path: &str, their_pk_path: &str) -> asymmetric::LongTermK
     my_keypair_file.seek(SeekFrom::Start(4+64+31+1)).unwrap(); // 4 byte prefix + 64 bytes of hex + 31 spaces + newline
     let (_, sk_bytes) = get_key_from_file(my_keypair_file, "SK");
 
-    let pk = asymmetric::public_key_from_slice(&pk_bytes).unwrap();
-    let their_pk = asymmetric::public_key_from_slice(&their_pk_bytes).unwrap();
-    let sk = asymmetric::secret_key_from_slice(&sk_bytes).unwrap();
+    let pk = key_exchange::public_key_from_slice(&pk_bytes).unwrap();
+    let their_pk = key_exchange::public_key_from_slice(&their_pk_bytes).unwrap();
+    let sk = key_exchange::secret_key_from_slice(&sk_bytes).unwrap();
 
-    asymmetric::LongTermKeys {
+    key_exchange::LongTermKeys {
         my_public_key: pk,
         my_secret_key: sk,
         their_public_key: their_pk,

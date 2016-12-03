@@ -46,7 +46,7 @@ mod test {
 
     const MESSAGE_SIZE: usize = 256;
 
-    fn server_echo(server_long_keys: proj_crypto::asymmetric::LongTermKeys) {
+    fn server_echo(server_long_keys: proj_crypto::asymmetric::key_exchange::LongTermKeys) {
         let mut server = server::start("127.0.0.1:1024", server_long_keys).unwrap();
         server.blocking_on(); 
 
@@ -67,16 +67,16 @@ mod test {
     #[test]
     #[ignore] // because we are opening ports on the loop back and it might fail on some configurations
     fn echo() {
-        let server_keypair = proj_crypto::asymmetric::gen_keypair();
-        let client_keypair = proj_crypto::asymmetric::gen_keypair();
+        let server_keypair = proj_crypto::asymmetric::key_exchange::gen_keypair();
+        let client_keypair = proj_crypto::asymmetric::key_exchange::gen_keypair();
 
-        let server_longkeys = proj_crypto::asymmetric::LongTermKeys {
+        let server_longkeys = proj_crypto::asymmetric::key_exchange::LongTermKeys {
             my_public_key: server_keypair.0.clone(),
             my_secret_key: server_keypair.1,
             their_public_key: client_keypair.0.clone(),
         };
 
-        let client_longkeys = proj_crypto::asymmetric::LongTermKeys {
+        let client_longkeys = proj_crypto::asymmetric::key_exchange::LongTermKeys {
             my_public_key: client_keypair.0,
             my_secret_key: client_keypair.1,
             their_public_key: server_keypair.0,

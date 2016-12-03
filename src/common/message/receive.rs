@@ -16,7 +16,7 @@ use super::MessageContent;
 use super::opcodes;
 use super::Error;
 use std::io;
-use proj_crypto::asymmetric::*;
+use proj_crypto::asymmetric::key_exchange::*;
 use proj_crypto::symmetric::AUTH_TAG_BYTES;
 use proj_crypto::symmetric;
 use super::{Message, Keypair};

@@ -14,7 +14,7 @@
 
 extern crate sodiumoxide;
 use std::net;
-use proj_crypto::asymmetric::LongTermKeys;
+use proj_crypto::asymmetric::key_exchange::LongTermKeys;
 use super::common::*;
 use super::common::message::{receive, send, MessageContent};
 use std::io;

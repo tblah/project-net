@@ -18,7 +18,7 @@ use std::io;
 use std::io::Write;
 use std::net::TcpStream;
 use std::net::Shutdown;
-use proj_crypto::asymmetric::{LongTermKeys, SessionKeys};
+use proj_crypto::asymmetric::key_exchange::{LongTermKeys, SessionKeys};
 use proj_crypto::symmetric;
 
 /// Errors returned by the client or server
