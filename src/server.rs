@@ -13,13 +13,13 @@
     along with project-net.  If not, see http://www.gnu.org/licenses/.*/
 
 extern crate sodiumoxide;
-use std::net;
 use proj_crypto::asymmetric::key_exchange::LongTermKeys;
 use super::common::*;
 use super::common::message::{receive, send, MessageContent};
 use std::io;
 use std::time::Duration;
 use std::net::Shutdown;
+use std::net::{TcpStream, TcpListener};
 
 /// Structure containing state information for the server
 pub struct Server {
@@ -27,26 +27,31 @@ pub struct Server {
     read_buff: Vec<u8>,
 }
 
-/// creates a new Server and performs a key exchange
-pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Server ,Error> {
+/// Begins listening for connections, returning an iterator through connections to the server or an error
+pub fn listen(socket_addr: &str) -> Result<TcpListener, Error> {
     sodiumoxide::init();
-    let listener = match net::TcpListener::bind(socket_addr) {
+
+    let listener = match TcpListener::bind(socket_addr) {
         Err(e) => {
             log(&format!("Error starting the server: {}", e), LOG_RELEASE);
             return Err(Error::Bind(e)); },
-        Ok(s) => {
+        Ok(l) => {
             log(&format!("Server bound to {}", socket_addr), LOG_DEBUG);
-            s },
+            l },
     };
 
-    // wait for a connection
-    let mut stream = match listener.accept() {
+    Ok( listener )
+}
+
+/// Takes an incoming connection and performs a key exchange, returning a set up connection or an error.
+pub fn do_key_exchange(incoming: Result<TcpStream, io::Error>, long_keys: LongTermKeys) -> Result<Server, Error> {
+    let mut stream = match incoming {
+        Ok(s) => s,
         Err(e) => {
             log("Error listening for a connection", LOG_RELEASE);
             return Err(Error::Accept(e)); },
-        Ok((s, _)) => s,
     };
-
+    
     log("Got connection!", LOG_DEBUG);
 
     // do key exchange

@@ -47,7 +47,9 @@ mod test {
     const MESSAGE_SIZE: usize = 256;
 
     fn server_echo(server_long_keys: proj_crypto::asymmetric::key_exchange::LongTermKeys) {
-        let mut server = server::start("127.0.0.1:1024", server_long_keys).unwrap();
+        let listener = server::listen("127.0.0.1:1024").unwrap();
+        
+        let mut server = server::do_key_exchange(listener.incoming().next().unwrap(), server_long_keys).unwrap();
         server.blocking_on(); 
 
         let mut buf: [u8; MESSAGE_SIZE] = [0; MESSAGE_SIZE];

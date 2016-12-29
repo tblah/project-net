@@ -267,10 +267,14 @@ fn get_keys(my_keypair_path: &str, their_pk_path: &str) -> key_exchange::LongTer
 }
 
 fn server(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
-    let mut server = match server::start(socket, get_keys(my_keypair_path, their_pk_path)) {
+    let listener = match server::listen(socket) {
         Err(e) => panic!("Server failed to start with error {:?}", e),
-        Ok(s) => s,
+        Ok(l) => l,
     };
+
+    let mut server = server::do_key_exchange(listener.incoming().next().unwrap(),
+                                             get_keys(my_keypair_path, their_pk_path)).unwrap();
+
     server.blocking_off(1);
 
     interactive(&mut server);
