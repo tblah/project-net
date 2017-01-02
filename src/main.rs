@@ -244,7 +244,7 @@ fn open_or_panic(path: &str) -> fs::File {
 }
 
 /// returns (my_pk, my_sk, their_pk)
-fn get_keys(my_keypair_path: &str, their_pk_path: &str) -> key_exchange::LongTermKeys {
+/*fn get_keys(my_keypair_path: &str, their_pk_path: &str) -> key_exchange::LongTermKeys {
     let my_keypair_file = open_or_panic(my_keypair_path);
     let their_pk_file = open_or_panic(their_pk_path);
 
@@ -264,10 +264,10 @@ fn get_keys(my_keypair_path: &str, their_pk_path: &str) -> key_exchange::LongTer
         my_secret_key: sk,
         their_public_key: their_pk,
     }
-}
+}*/
 
 fn server(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
-    let listener = match server::listen(socket) {
+/*    let listener = match server::listen(socket) {
         Err(e) => panic!("Server failed to start with error {:?}", e),
         Ok(l) => l,
     };
@@ -277,17 +277,17 @@ fn server(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
 
     server.blocking_off(1);
 
-    interactive(&mut server);
+    interactive(&mut server);*/
 }
 
 fn client(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
-    let mut client = match client::start(socket, get_keys(my_keypair_path, their_pk_path)) {
+/*    let mut client = match client::start(socket, get_keys(my_keypair_path, their_pk_path)) {
         Err(e) => panic!("Client failed to start with error {:?}", e),
         Ok(c) => c,
     };
     client.blocking_off(1);
 
-    interactive(&mut client);
+    interactive(&mut client);*/
 }       
 
 fn interactive<T: Read + Write>(channel: &mut T) -> ! {

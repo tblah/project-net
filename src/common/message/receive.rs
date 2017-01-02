@@ -16,10 +16,15 @@ use super::MessageContent;
 use super::opcodes;
 use super::Error;
 use std::io;
+use proj_crypto::asymmetric::*;
 use proj_crypto::asymmetric::key_exchange::*;
+use proj_crypto::asymmetric::key_id::*;
 use proj_crypto::symmetric::AUTH_TAG_BYTES;
 use proj_crypto::symmetric;
-use super::{Message, Keypair};
+use sodiumoxide::crypto::hash::sha256;
+use sodiumoxide::utils::memcmp;
+use super::{Message, CHALLENGE_BYTES};
+use super::super::{SessionKeys, Keypair};
 
 pub fn receive_device_first <R: io::Read> (source: &mut R) -> Result<Message, Error> {
     let (opcode, message_number) = match get_header(source) {
@@ -29,8 +34,8 @@ pub fn receive_device_first <R: io::Read> (source: &mut R) -> Result<Message, Er
 
     parse_clear_message(source, opcode, message_number)
 }
-        
-pub fn server_first <R: io::Read> (source: &mut R, long_term_keys: &LongTermKeys, session_keypair: &Keypair ) -> Result<Message, Error> {
+ 
+pub fn server_first <R: io::Read> (source: &mut R, long_keypair: &Keypair, session_keypair: &Keypair, server_long_pk: &PublicKey) -> Result<Message, Error> {
     let (ref pk_session, ref sk_session) = *session_keypair;
     let (opcode, message_number) = match get_header(source) {
         Err(e) => return Err(e),
@@ -45,20 +50,30 @@ pub fn server_first <R: io::Read> (source: &mut R, long_term_keys: &LongTermKeys
         }
 
         // get the content section of the message
-        let buff = match get_n_bytes(source, PUBLIC_KEY_BYTES + CHALLENGE_BYTES + AUTH_TAG_BYTES) {
+        let buff = match get_n_bytes(source, PUBLIC_KEY_BYTES + CHALLENGE_BYTES + 32 + AUTH_TAG_BYTES) { // the 32 is for the key id
             Err(e) => return Err(e),
             Ok(x) => x,
         };
 
         // separate the authentication tag from the message and check that it is correct
         let (auth_tag, the_rest) = buff.split_at(AUTH_TAG_BYTES);
-        if !long_term_keys.device_verify_server_msg(&pk_session, &sk_session, the_rest, message_number, auth_tag) {
-            return Err(Error::Crypto);
-        }
 
+        // TODO: we don't know server_long_pk yet. You need to get it from the packet and then look it up
+
+        // derive the authentication key
+        let from_server_auth = &key_exchange(server_long_pk, &sk_session, &pk_session, true);
+        let server_authenticator = symmetric::State::new(&from_server_auth.as_slice(), &from_server_auth.as_slice()); // we don't use or have encryption keys at this point
+
+        // verify authentication tag
+        if !server_authenticator.verify_auth_tag(auth_tag, the_rest, message_number) {
+            return Err(Error::Crypto);
+        } // else continue...
+        
         // parse the message
-        let (pub_key_bytes, challenge) = the_rest.split_at(PUBLIC_KEY_BYTES);
+        let (pub_key_bytes, challenge_and_key_id) = the_rest.split_at(PUBLIC_KEY_BYTES);
         let pub_key = public_key_from_slice(pub_key_bytes).unwrap();
+
+        let (challenge, key_id) = challenge_and_key_id.split_at(CHALLENGE_BYTES);
 
         // the rust compiler is not smart enough to notice that challenge always has length 32 so we are going to have to waste some time
         let mut challenge_sized: [u8; CHALLENGE_BYTES] = [0; CHALLENGE_BYTES];
@@ -66,7 +81,11 @@ pub fn server_first <R: io::Read> (source: &mut R, long_term_keys: &LongTermKeys
             challenge_sized[i] = challenge[i];
         }
 
-        Ok(Message{ number: message_number, content: MessageContent::ServerFirst(pub_key, challenge_sized) })
+        let key_id = PublicKeyId {
+            digest: sha256::Digest::from_slice(key_id).unwrap(),
+        };
+
+        Ok(Message{ number: message_number, content: MessageContent::ServerFirst(pub_key, challenge_sized, key_id) })
     } else {
         Err(Error::InvalidOpcode)
     }
@@ -91,7 +110,12 @@ pub fn device_second <R: io::Read> (source: &mut R, session_keys: &SessionKeys, 
             Ok(x) => x,
         };
 
-        if server_verify_response(session_keys, &contents, message_number, challenge) {
+        let challenge_recvd = match session_keys.from_device.authenticated_decryption(&contents, message_number) {
+            None => return Err(Error::Crypto),
+            Some(c) => c,
+        };
+
+        if memcmp(&challenge_recvd, challenge) {
             Ok(Message{ number: message_number, content: MessageContent::DeviceSecond })
         } else {
             Err(Error::Crypto)
@@ -109,7 +133,7 @@ pub fn general <R: io::Read> (source: &mut R, session_keys: &symmetric::State) -
 
     // these functions check if the opcode is valid for us
     if opcode <= opcodes::MAX_NOCRYPT {
-        parse_clear_message(source, opcode, message_number)
+        parse_clear_message(source, opcode, message_number) 
     } else {
         parse_crypt_message(source, opcode, message_number, session_keys)
     }
@@ -133,7 +157,6 @@ fn get_n_bytes<R: io::Read> (source: &mut R, n: usize) -> Result<Vec<u8>, Error>
     }
 }
 
-// todo endianness!
 fn two_bytes_to_u16(bytes: &[u8]) -> u16 {
     assert_eq!(bytes.len(), 2);
 
@@ -167,7 +190,18 @@ fn parse_clear_message <R: io::Read> (source: &mut R, opcode: u8, message_number
                 Err(e) => return Err(e),
                 Ok(x) => x,
             };
-                Ok(Message{ number: message_number, content: MessageContent::DeviceFirst(public_key_from_slice(&pub_key_bytes).unwrap())})
+            let pub_key = public_key_from_slice(&pub_key_bytes).unwrap();
+
+            let key_id_bytes = match get_n_bytes(source, 32) {
+                Err(e) => return Err(e),
+                Ok(x) => x,
+            };
+            let digest = sha256::Digest::from_slice(&key_id_bytes).unwrap();
+            let key_id = PublicKeyId {
+                digest: digest,
+            };
+            
+            Ok(Message{ number: message_number, content: MessageContent::DeviceFirst(pub_key, key_id )})
         },
         _ => Err(Error::InvalidOpcode),
     } 
@@ -263,4 +297,3 @@ fn parse_constant_contents_message<R: io::Read> (source: &mut R, opcode: u8, mes
         Err(Error::Crypto)
     }
 }
-    

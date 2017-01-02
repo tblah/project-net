@@ -11,9 +11,8 @@
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
     along with project-net.  If not, see http://www.gnu.org/licenses/.*/
-
+/*
 extern crate sodiumoxide;
-use proj_crypto::asymmetric::key_exchange::LongTermKeys;
 use super::common::*;
 use super::common::message::{receive, send, MessageContent};
 use std::io;
@@ -73,8 +72,8 @@ pub fn do_key_exchange(incoming: Result<TcpStream, io::Error>, long_keys: LongTe
     }
 
     // was it a DeviceFirst message?
-    let device_ephemeral_pk = match m.content {
-        MessageContent::DeviceFirst(pk) => pk,
+    let (device_ephemeral_pk, device_long_pk_id) = match m.content {
+        MessageContent::DeviceFirst(pk, id) => (pk, id),
         _ => { send_error(&mut stream, 0);
                stream.shutdown(Shutdown::Both).unwrap();
                return Err(Error::DeviceFirst(message::Error::InvalidOpcode)); },
@@ -176,6 +175,5 @@ impl io::Read for Server {
         Ok(num_elements)
     }
 }
-                
 
-
+*/

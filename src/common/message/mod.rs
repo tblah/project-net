@@ -1,4 +1,31 @@
 //! Message structure
+//!
+//! The submodules implement the asymmetric key exchange
+//!
+//! Basically the shared secrets are derived from ephemeral key pairs and authentication keys are the sender's long-term key pair exchanged with the receiver's ephemeral key pair. This is faster than signing and I think it is rather elegant too.
+//!
+//! # The Protocol
+//! ## Device Message 0
+//! + generate ephemeral keypair
+//! + send ephemeral public key to the server along with the ID of the device's long-term public key
+//!
+//! ## Server Message 0
+//! + Generate ephemeral keypair
+//! + Compute session keys
+//! + Pick a random challenge number
+//! + Send ephemeral public key and r to the client, along with the ID of the server's long-term public key. Plaintext authentication (as the client does not yet have the encryption key)
+//!
+//! ## Device Message 1
+//! + Check auth
+//! + Compute session keys
+//! + Send r to server, encrypted and authenticated. This authenticates the ephemeral public key we sent in message 0
+//!
+//! ## Server
+//! + Decrypt and authenticate and check the challenge response
+//!
+//! ## An important note:
+//! Authentication session keys are symmetric therefore either party can impersonate the other. In an interactive setting this is not a problem because the keys are fixed to only this pair and the other side would not be expecting to receive a message authenticated using their key. However, if Bob decided to publish all his key material he could fabricate messages which look to a third party as though they are sent by Alice. This was intentional in the design of Signal's key exchange because it gives both parties plausible deniability.
+//!
 
 /*  This file is part of project-net.
     project-net is free software: you can redistribute it and/or modify
@@ -10,12 +37,11 @@
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
-along with project-net.  If not, see http://www.gnu.org/licenses/.*/
+    along with project-net.  If not, see http://www.gnu.org/licenses/.*/
 
-use proj_crypto::asymmetric::key_exchange;
+use proj_crypto::asymmetric::{PublicKey, SecretKey};
+use proj_crypto::asymmetric::key_id;
 use std::io;
-
-pub type Keypair = (key_exchange::PublicKey, key_exchange::SecretKey);
 
 #[derive(Debug)]
 pub struct Message {
@@ -34,14 +60,17 @@ pub enum Error {
     BadPacket
 }
 
+/// The number of bytes in the random challenge sent from the server to the client
+const CHALLENGE_BYTES: usize = 32;
+
 /// Representation of the information that we care about within a message
 #[derive(Debug)]
 pub enum MessageContent {
-    /// Initiates the key exchange
-    DeviceFirst(key_exchange::PublicKey),
+    /// Initiates the key exchange. 
+    DeviceFirst(PublicKey, key_id::PublicKeyId),
 
     /// Second message in the key exchange
-    ServerFirst(key_exchange::PublicKey, [u8; key_exchange::CHALLENGE_BYTES]),
+    ServerFirst(PublicKey, [u8; CHALLENGE_BYTES], key_id::PublicKeyId),
 
     /// Final message in a successful key exchange
     DeviceSecond,
@@ -70,6 +99,7 @@ mod opcodes;
 /******************* Tests *******************/
 #[cfg(test)]
 mod tests {
+    use common::SessionKeys;
     use super::send;
     use super::receive;
     use super::Message;
@@ -77,6 +107,7 @@ mod tests {
     extern crate sodiumoxide;
     use sodiumoxide::randombytes;
     use proj_crypto::asymmetric::key_exchange;
+    use proj_crypto::asymmetric::key_id::*;
 
     #[test]
     fn error_general() {
@@ -181,23 +212,11 @@ mod tests {
     }
 
     // also tests error packets
-    fn do_full_exchange() -> (key_exchange::SessionKeys, key_exchange::SessionKeys) {
+    fn do_full_exchange() -> (SessionKeys, SessionKeys) {
         sodiumoxide::init();
 
-        let (pk_device, sk_device) = key_exchange::gen_keypair();
-        let (pk_server, sk_server) = key_exchange::gen_keypair();
-
-        let device = key_exchange::LongTermKeys {
-            my_public_key: pk_device.clone(),
-            my_secret_key: sk_device,
-            their_public_key: pk_server.clone(),
-        };
-
-        let server = key_exchange::LongTermKeys {
-            my_public_key: pk_server.clone(),
-            my_secret_key: sk_server,
-            their_public_key: pk_device.clone(),
-        };
+        let device_long_keypair = key_exchange::gen_keypair();
+        let server_long_keypair = key_exchange::gen_keypair();
 
         // medium to send messages across
         let mut channel: Vec<u8> = Vec::new();
@@ -205,15 +224,16 @@ mod tests {
         // device_first:
 
         // send message
-        let device_session_keypair = send::device_first(&mut channel).unwrap();
+        let device_session_keypair = send::device_first(&mut channel, &device_long_keypair.0).unwrap();
 
         // receive message
         let device_first = receive::receive_device_first(&mut channel.as_slice()).unwrap();
-        let sent_pk = match device_first.content {
-            MessageContent::DeviceFirst(p) => p,
+        let (sent_pk, device_id) = match device_first.content {
+            MessageContent::DeviceFirst(p, id) => (p, id),
             _ => panic!("receive::device_first did not return a device first packet")
         };
 
+        assert_eq!(device_id, id_of_pk(&device_long_keypair.0));
         assert_eq!(sent_pk, device_session_keypair.0);
         assert_eq!(device_first.number, 0);
 
@@ -226,16 +246,17 @@ mod tests {
         
         // server_first:
 
-        // send message
-        let (server_session_keys, server_challenge)= send::server_first(&mut channel, &server, &device_session_keypair.0).unwrap();
+        // send 
+        let (server_session_keys, server_challenge) = send::server_first(&mut channel, &server_long_keypair, &device_session_keypair.0, &device_long_keypair.0).unwrap();
 
-        // receive message
-        let server_first = receive::server_first(&mut channel.as_slice(), &device, &device_session_keypair).unwrap();
-        let (server_session_pub_key, challenge) = match server_first.content {
-            MessageContent::ServerFirst(x, y) => (x, y),
+        // receive 
+        let server_first = receive::server_first(&mut channel.as_slice(), &device_long_keypair, &device_session_keypair, &server_long_keypair.0).unwrap();
+        let (server_session_pub_key, challenge, server_id) = match server_first.content {
+            MessageContent::ServerFirst(x, y, z) => (x, y, z),
             _ => panic!("receive::server_first returned the wrong message type!"),
         };
 
+        assert_eq!(server_id, id_of_pk(&server_long_keypair.0));
         assert_eq!(server_challenge, challenge);
         assert_eq!(server_first.number, 0);
 
@@ -243,13 +264,13 @@ mod tests {
 
         // test sending an error to server_first
         send_error(&mut channel, 7);
-        assert!(errorp(receive::server_first(&mut channel.as_slice(), &device, &device_session_keypair)));
+        assert!(errorp(receive::server_first(&mut channel.as_slice(), &device_long_keypair, &device_session_keypair, &server_long_keypair.0)));
         channel.clear();
         
         // device_second
 
         // send message
-        let device_session_keys = send::device_second(&mut channel, &device, &server_session_pub_key, &challenge, &device_session_keypair).unwrap();
+        let device_session_keys = send::device_second(&mut channel, &server_long_keypair.0, &server_session_pub_key, &challenge, &device_long_keypair, &device_session_keypair).unwrap();
 
         // receive message
         let device_second = receive::device_second(&mut channel.as_slice(), &server_session_keys, &server_challenge.as_slice()).unwrap();

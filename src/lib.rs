@@ -33,7 +33,7 @@ extern crate sodiumoxide;
 mod common;
 pub mod server;
 pub mod client;
-
+/*
 #[cfg(test)]
 mod test {
     use super::server;
@@ -100,4 +100,4 @@ mod test {
         assert!(&recv_buf[0..MESSAGE_SIZE] == client_msg.as_slice());
     }
 }
-        
+*/

@@ -14,13 +14,12 @@
 
 extern crate sodiumoxide;
 use std::net;
-use proj_crypto::asymmetric::key_exchange::LongTermKeys;
 use super::common::*;
 use super::common::message::{receive, send, MessageContent};
 use std::io;
 use std::time::Duration;
 use std::net::Shutdown;
-
+/*
 /// Structure containing the state for a running client
 pub struct Client {
     state: ProtocolState,
@@ -42,7 +41,7 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Client, Error
     let mut expected_next_n: u16 = 0;
 
     // send device first
-    let keypair = match send::device_first(&mut stream) {
+    let keypair = match send::device_first(&mut stream, &long_keys.my_public_key) {
         Ok(k) => k,
         Err(e) => {
             log("Problem sending device_first", LOG_RELEASE);
@@ -141,3 +140,4 @@ impl Client {
         self.state.stream.set_read_timeout(None).unwrap();
     }
 }
+*/
