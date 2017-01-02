@@ -57,6 +57,7 @@ pub enum Error {
     NotEnoughWritten(usize),
     InvalidOpcode,
     Crypto,
+    PubKeyId,
     BadPacket
 }
 
@@ -108,6 +109,7 @@ mod tests {
     use sodiumoxide::randombytes;
     use proj_crypto::asymmetric::key_exchange;
     use proj_crypto::asymmetric::key_id::*;
+    use std::collections::hash_map::HashMap;
 
     #[test]
     fn error_general() {
@@ -245,12 +247,14 @@ mod tests {
         channel.clear();
         
         // server_first:
+        let mut trusted_pks = HashMap::new();
+        trusted_pks.insert(id_of_pk(&server_long_keypair.0), server_long_keypair.0.clone());
 
         // send 
         let (server_session_keys, server_challenge) = send::server_first(&mut channel, &server_long_keypair, &device_session_keypair.0, &device_long_keypair.0).unwrap();
 
         // receive 
-        let server_first = receive::server_first(&mut channel.as_slice(), &device_long_keypair, &device_session_keypair, &server_long_keypair.0).unwrap();
+        let server_first = receive::server_first(&mut channel.as_slice(), &device_long_keypair, &device_session_keypair, &trusted_pks).unwrap();
         let (server_session_pub_key, challenge, server_id) = match server_first.content {
             MessageContent::ServerFirst(x, y, z) => (x, y, z),
             _ => panic!("receive::server_first returned the wrong message type!"),
@@ -264,7 +268,7 @@ mod tests {
 
         // test sending an error to server_first
         send_error(&mut channel, 7);
-        assert!(errorp(receive::server_first(&mut channel.as_slice(), &device_long_keypair, &device_session_keypair, &server_long_keypair.0)));
+        assert!(errorp(receive::server_first(&mut channel.as_slice(), &device_long_keypair, &device_session_keypair, &trusted_pks)));
         channel.clear();
         
         // device_second

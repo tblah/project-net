@@ -25,6 +25,7 @@ use sodiumoxide::crypto::hash::sha256;
 use sodiumoxide::utils::memcmp;
 use super::{Message, CHALLENGE_BYTES};
 use super::super::{SessionKeys, Keypair};
+use std::collections::HashMap;
 
 pub fn receive_device_first <R: io::Read> (source: &mut R) -> Result<Message, Error> {
     let (opcode, message_number) = match get_header(source) {
@@ -35,7 +36,7 @@ pub fn receive_device_first <R: io::Read> (source: &mut R) -> Result<Message, Er
     parse_clear_message(source, opcode, message_number)
 }
  
-pub fn server_first <R: io::Read> (source: &mut R, long_keypair: &Keypair, session_keypair: &Keypair, server_long_pk: &PublicKey) -> Result<Message, Error> {
+pub fn server_first <R: io::Read> (source: &mut R, long_keypair: &Keypair, session_keypair: &Keypair, trusted_pks: &HashMap<PublicKeyId, PublicKey>) -> Result<Message, Error> {
     let (ref pk_session, ref sk_session) = *session_keypair;
     let (opcode, message_number) = match get_header(source) {
         Err(e) => return Err(e),
@@ -55,13 +56,22 @@ pub fn server_first <R: io::Read> (source: &mut R, long_keypair: &Keypair, sessi
             Ok(x) => x,
         };
 
-        // separate the authentication tag from the message and check that it is correct
-        let (auth_tag, the_rest) = buff.split_at(AUTH_TAG_BYTES);
+        // get the key id 
+        let (key_id_bytes, authenticated_bit) = buff.split_at(32);
+        let key_id = PublicKeyId {
+            digest: sha256::Digest::from_slice(key_id_bytes).unwrap(),
+        };
 
-        // TODO: we don't know server_long_pk yet. You need to get it from the packet and then look it up
+        let server_long_pk = match find_public_key(&key_id, trusted_pks) {
+            None => return Err(Error::PubKeyId),
+            Some(pk) => pk,
+        };
+
+        // separate the authentication tag from the message and check that it is correct
+        let (auth_tag, the_rest) = authenticated_bit.split_at(AUTH_TAG_BYTES);
 
         // derive the authentication key
-        let from_server_auth = &key_exchange(server_long_pk, &sk_session, &pk_session, true);
+        let from_server_auth = &key_exchange(&server_long_pk, &sk_session, &pk_session, true);
         let server_authenticator = symmetric::State::new(&from_server_auth.as_slice(), &from_server_auth.as_slice()); // we don't use or have encryption keys at this point
 
         // verify authentication tag
@@ -70,20 +80,14 @@ pub fn server_first <R: io::Read> (source: &mut R, long_keypair: &Keypair, sessi
         } // else continue...
         
         // parse the message
-        let (pub_key_bytes, challenge_and_key_id) = the_rest.split_at(PUBLIC_KEY_BYTES);
+        let (pub_key_bytes, challenge) = the_rest.split_at(PUBLIC_KEY_BYTES);
         let pub_key = public_key_from_slice(pub_key_bytes).unwrap();
-
-        let (challenge, key_id) = challenge_and_key_id.split_at(CHALLENGE_BYTES);
 
         // the rust compiler is not smart enough to notice that challenge always has length 32 so we are going to have to waste some time
         let mut challenge_sized: [u8; CHALLENGE_BYTES] = [0; CHALLENGE_BYTES];
         for i in 0..CHALLENGE_BYTES {
             challenge_sized[i] = challenge[i];
         }
-
-        let key_id = PublicKeyId {
-            digest: sha256::Digest::from_slice(key_id).unwrap(),
-        };
 
         Ok(Message{ number: message_number, content: MessageContent::ServerFirst(pub_key, challenge_sized, key_id) })
     } else {

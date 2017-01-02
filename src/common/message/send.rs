@@ -86,10 +86,10 @@ pub fn server_first<W: io::Write>(dest: &mut W, long_term_keypair: &Keypair, dev
     let mut plaintext = vec!();
     plaintext.extend_from_slice(&pub_key[..]);
     plaintext.extend_from_slice(&challenge);
-    plaintext.extend_from_slice(&id_of_pk(&long_term_keypair.0).digest[..]);
     let auth_tag = session_keys.from_server.plain_auth_tag(&plaintext, 0); // message number = 0
     
     // construct message
+    message.extend_from_slice(&id_of_pk(&long_term_keypair.0).digest[..]);
     message.extend_from_slice(&auth_tag);
     message.append(&mut plaintext); // plaintext is the public key + challenge
 
