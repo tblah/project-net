@@ -33,23 +33,27 @@ extern crate sodiumoxide;
 mod common;
 pub mod server;
 pub mod client;
-/*
+
 #[cfg(test)]
 mod test {
     use super::server;
     use super::client;
     use std::io::{Read, Write};
+    use std::io;
+    use std::net::TcpStream;
     extern crate sodiumoxide;
     extern crate proj_crypto;
     use std::thread;
     use std::time::Duration;
+    use std::collections::HashMap;
+    use proj_crypto::asymmetric::{key_id, PublicKey};
+    use common::*;
 
     const MESSAGE_SIZE: usize = 256;
+    const NUM_CLIENTS: usize = 10;
 
-    fn server_echo(server_long_keys: proj_crypto::asymmetric::key_exchange::LongTermKeys) {
-        let listener = server::listen("127.0.0.1:1024").unwrap();
-        
-        let mut server = server::do_key_exchange(listener.incoming().next().unwrap(), server_long_keys).unwrap();
+    fn server_handle_connection(stream: io::Result<TcpStream>, keypair: Keypair, trusted_pks: HashMap<key_id::PublicKeyId, PublicKey>) {
+        let mut server = server::do_key_exchange(stream, &keypair, &trusted_pks).unwrap();
         server.blocking_on(); 
 
         let mut buf: [u8; MESSAGE_SIZE] = [0; MESSAGE_SIZE];
@@ -57,7 +61,7 @@ mod test {
             thread::sleep(Duration::from_millis(10));
             let n = match server.read(&mut buf) {
                 Ok(n) => n,
-                Err(e) => panic!("{:?}", e), // errors will be detected by the client. This error could well be that the client has send Stop
+                Err(_) => return, // this just occurs when the client sends it's stop packet and we can't fail tests from a panic here anyway (see note at the end of the test function)
             };
 
             if n > 0 {
@@ -65,29 +69,22 @@ mod test {
             }
         }
     }
-    
-    #[test]
-    #[ignore] // because we are opening ports on the loop back and it might fail on some configurations
-    fn echo() {
-        let server_keypair = proj_crypto::asymmetric::key_exchange::gen_keypair();
-        let client_keypair = proj_crypto::asymmetric::key_exchange::gen_keypair();
 
-        let server_longkeys = proj_crypto::asymmetric::key_exchange::LongTermKeys {
-            my_public_key: server_keypair.0.clone(),
-            my_secret_key: server_keypair.1,
-            their_public_key: client_keypair.0.clone(),
-        };
+    fn server_echo(server_long_keypair: Keypair, trusted_pks: HashMap<key_id::PublicKeyId, PublicKey>) {
+        let listener = server::listen("127.0.0.1:1024").unwrap();
+        let connections = listener.incoming();
 
-        let client_longkeys = proj_crypto::asymmetric::key_exchange::LongTermKeys {
-            my_public_key: client_keypair.0,
-            my_secret_key: client_keypair.1,
-            their_public_key: server_keypair.0,
-        };
+        let mut handles = vec!();
+        for stream in connections {
+            let keypair = server_long_keypair.clone();
+            let trusted_pks_clone = trusted_pks.clone();
 
-        let _ = thread::spawn(|| { server_echo(server_longkeys) }); // starts listening
-        thread::sleep(Duration::from_millis(10));
-
-        let mut client = client::start("127.0.0.1:1024", client_longkeys).unwrap(); // key exchange happens here
+            handles.push( thread::spawn(|| server_handle_connection(stream, keypair, trusted_pks_clone) ) );
+        }
+    }
+        
+    fn client_thread(keypair: Keypair, trusted_pks: HashMap<key_id::PublicKeyId, PublicKey>) {
+        let mut client = client::start("127.0.0.1:1024", keypair, &trusted_pks).unwrap();
         client.blocking_on();
 
         let client_msg = sodiumoxide::randombytes::randombytes(MESSAGE_SIZE);
@@ -99,5 +96,36 @@ mod test {
         // don't use assert_eq! because we don't want it printing a load of useless entropy
         assert!(&recv_buf[0..MESSAGE_SIZE] == client_msg.as_slice());
     }
+   
+    #[test]
+    fn echo() {
+        let server_keypair = proj_crypto::asymmetric::key_exchange::gen_keypair();
+
+        let mut trusted_pks = HashMap::new();
+        trusted_pks.insert(key_id::id_of_pk(&server_keypair.0), server_keypair.0.clone());
+        
+        let mut client_keypairs = vec!();
+        for _ in 0..NUM_CLIENTS {
+            let keypair = proj_crypto::asymmetric::key_exchange::gen_keypair();
+            trusted_pks.insert(key_id::id_of_pk(&keypair.0), keypair.0.clone());
+            client_keypairs.push( keypair );
+        }
+            
+        let server_trusted_pks = trusted_pks.clone();
+        let _ = thread::spawn(|| server_echo(server_keypair, server_trusted_pks) ); // starts listening
+        thread::sleep(Duration::from_millis(10));
+
+        let mut client_threads = vec!();
+        for keypair in client_keypairs {
+            let client_trusted_pks = trusted_pks.clone();
+            client_threads.push( thread::spawn(|| client_thread(keypair, client_trusted_pks) ) );
+        }
+
+        // make sure this thread panics if any of the children panicked
+        for handle in client_threads {
+            let _ = handle.join().unwrap();
+        }
+        // note that we won't notice panics in server threads. This is because we can't join them because the listening thread never stops waiting for more connections. Each client checks that the server responds to connections correctly so I don't think this is too bad.
+    }
 }
-*/
+

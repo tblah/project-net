@@ -15,7 +15,6 @@
 use super::opcodes;
 use super::Error;
 use std::io;
-use std::vec;
 use proj_crypto::asymmetric::key_exchange::*;
 use proj_crypto::asymmetric::key_id::*;
 use proj_crypto::asymmetric::*;

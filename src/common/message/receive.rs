@@ -36,7 +36,7 @@ pub fn receive_device_first <R: io::Read> (source: &mut R) -> Result<Message, Er
     parse_clear_message(source, opcode, message_number)
 }
  
-pub fn server_first <R: io::Read> (source: &mut R, long_keypair: &Keypair, session_keypair: &Keypair, trusted_pks: &HashMap<PublicKeyId, PublicKey>) -> Result<Message, Error> {
+pub fn server_first <R: io::Read> (source: &mut R, session_keypair: &Keypair, trusted_pks: &HashMap<PublicKeyId, PublicKey>) -> Result<Message, Error> {
     let (ref pk_session, ref sk_session) = *session_keypair;
     let (opcode, message_number) = match get_header(source) {
         Err(e) => return Err(e),
@@ -89,7 +89,7 @@ pub fn server_first <R: io::Read> (source: &mut R, long_keypair: &Keypair, sessi
             challenge_sized[i] = challenge[i];
         }
 
-        Ok(Message{ number: message_number, content: MessageContent::ServerFirst(pub_key, challenge_sized, key_id) })
+        Ok(Message{ number: message_number, content: MessageContent::ServerFirst(pub_key, challenge_sized, server_long_pk) })
     } else {
         Err(Error::InvalidOpcode)
     }

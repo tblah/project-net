@@ -17,9 +17,11 @@ use std::net;
 use super::common::*;
 use super::common::message::{receive, send, MessageContent};
 use std::io;
+use std::collections::HashMap;
 use std::time::Duration;
 use std::net::Shutdown;
-/*
+use proj_crypto::asymmetric::*;
+
 /// Structure containing the state for a running client
 pub struct Client {
     state: ProtocolState,
@@ -27,7 +29,7 @@ pub struct Client {
 }
 
 /// Creates a new client and performs a key exchange
-pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Client, Error> {
+pub fn start(socket_addr: &str, long_keypair: Keypair, trusted_pks: &HashMap<key_id::PublicKeyId, PublicKey>) -> Result<Client, Error> {
     sodiumoxide::init();
     // attempt connection
     let mut stream = match net::TcpStream::connect(socket_addr) {
@@ -41,7 +43,7 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Client, Error
     let mut expected_next_n: u16 = 0;
 
     // send device first
-    let keypair = match send::device_first(&mut stream, &long_keys.my_public_key) {
+    let session_keypair = match send::device_first(&mut stream, &long_keypair.0) {
         Ok(k) => k,
         Err(e) => {
             log("Problem sending device_first", LOG_RELEASE);
@@ -51,7 +53,7 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Client, Error
     log("Sent device_first successfully", LOG_DEBUG);
 
     // receive server response
-    let server_first = match receive::server_first(&mut stream, &long_keys, &keypair) {
+    let server_first = match receive::server_first(&mut stream, &session_keypair, trusted_pks) {
         Ok(m) => m,
         Err(e) => {
             log("Failed to receive server_first", LOG_RELEASE);
@@ -66,15 +68,15 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Client, Error
         return Err(Error::BadMessageN);
     }
 
-    let (server_pk, challenge) = match server_first.content {
-        MessageContent::ServerFirst(pk, c) => (pk, c),
+    let (server_session_pk, challenge, server_long_pk) = match server_first.content {
+        MessageContent::ServerFirst(pk, c, long_pk) => (pk, c, long_pk),
         _ => return Err(Error::ServerFirst(message::Error::InvalidOpcode)),
     };
 
     log("received server_first successfully", LOG_DEBUG);    
 
     // send challenge response
-    let session_keys = match send::device_second(&mut stream, &long_keys, &server_pk, &challenge, &keypair) {
+    let session_keys = match send::device_second(&mut stream, &server_long_pk, &server_session_pk, &challenge, &long_keypair, &session_keypair) {
         Ok(sk) => sk,
         Err(e) => return Err(Error::DeviceSecond(e)),
     };
@@ -83,7 +85,7 @@ pub fn start(socket_addr: &str, long_keys: LongTermKeys) -> Result<Client, Error
 
     let client = ProtocolState {
         stream: stream,
-        long_keys: long_keys,
+        long_keypair: long_keypair,
         next_send_n: 2,
         next_recv_n: expected_next_n,
         session_keys: session_keys,
@@ -140,4 +142,4 @@ impl Client {
         self.state.stream.set_read_timeout(None).unwrap();
     }
 }
-*/
+

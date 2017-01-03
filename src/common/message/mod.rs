@@ -39,7 +39,7 @@
     You should have received a copy of the GNU General Public License
     along with project-net.  If not, see http://www.gnu.org/licenses/.*/
 
-use proj_crypto::asymmetric::{PublicKey, SecretKey};
+use proj_crypto::asymmetric::PublicKey;
 use proj_crypto::asymmetric::key_id;
 use std::io;
 
@@ -70,8 +70,8 @@ pub enum MessageContent {
     /// Initiates the key exchange. 
     DeviceFirst(PublicKey, key_id::PublicKeyId),
 
-    /// Second message in the key exchange
-    ServerFirst(PublicKey, [u8; CHALLENGE_BYTES], key_id::PublicKeyId),
+    /// Second message in the key exchange. First public key is for the session, the second is long-term
+    ServerFirst(PublicKey, [u8; CHALLENGE_BYTES], PublicKey),
 
     /// Final message in a successful key exchange
     DeviceSecond,
@@ -254,13 +254,13 @@ mod tests {
         let (server_session_keys, server_challenge) = send::server_first(&mut channel, &server_long_keypair, &device_session_keypair.0, &device_long_keypair.0).unwrap();
 
         // receive 
-        let server_first = receive::server_first(&mut channel.as_slice(), &device_long_keypair, &device_session_keypair, &trusted_pks).unwrap();
+        let server_first = receive::server_first(&mut channel.as_slice(), &device_session_keypair, &trusted_pks).unwrap();
         let (server_session_pub_key, challenge, server_id) = match server_first.content {
             MessageContent::ServerFirst(x, y, z) => (x, y, z),
             _ => panic!("receive::server_first returned the wrong message type!"),
         };
 
-        assert_eq!(server_id, id_of_pk(&server_long_keypair.0));
+        assert_eq!(server_id, server_long_keypair.0);
         assert_eq!(server_challenge, challenge);
         assert_eq!(server_first.number, 0);
 
@@ -268,7 +268,7 @@ mod tests {
 
         // test sending an error to server_first
         send_error(&mut channel, 7);
-        assert!(errorp(receive::server_first(&mut channel.as_slice(), &device_long_keypair, &device_session_keypair, &trusted_pks)));
+        assert!(errorp(receive::server_first(&mut channel.as_slice(), &device_session_keypair, &trusted_pks)));
         channel.clear();
         
         // device_second
