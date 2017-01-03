@@ -100,7 +100,7 @@ mod opcodes;
 /******************* Tests *******************/
 #[cfg(test)]
 mod tests {
-    use common::SessionKeys;
+    use SessionKeys;
     use super::send;
     use super::receive;
     use super::Message;

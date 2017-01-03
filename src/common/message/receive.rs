@@ -24,7 +24,7 @@ use proj_crypto::symmetric;
 use sodiumoxide::crypto::hash::sha256;
 use sodiumoxide::utils::memcmp;
 use super::{Message, CHALLENGE_BYTES};
-use super::super::{SessionKeys, Keypair};
+use {SessionKeys, Keypair};
 use std::collections::HashMap;
 
 pub fn receive_device_first <R: io::Read> (source: &mut R) -> Result<Message, Error> {

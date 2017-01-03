@@ -21,6 +21,7 @@ use std::net::Shutdown;
 use std::net::{TcpStream, TcpListener};
 use std::collections::HashMap;
 use proj_crypto::asymmetric::*;
+use Keypair;
 
 /// Structure containing state information for the server
 pub struct Server {

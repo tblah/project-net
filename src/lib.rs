@@ -30,14 +30,26 @@
 extern crate proj_crypto;
 extern crate sodiumoxide;
 
+use proj_crypto::symmetric;
+use proj_crypto::asymmetric::{PublicKey, SecretKey};
+
 mod common;
 pub mod server;
 pub mod client;
 
+/// Simple tuple of a public key and a secret key
+pub type Keypair = (PublicKey, SecretKey);
+
+/// Stores session keys
+pub struct SessionKeys {
+    /// symmetric state for use with messages to be sent or received from the device
+    pub from_device: symmetric::State,
+    /// symmetric state for use with message to be sent or received from the server
+    pub from_server: symmetric::State,
+}
+
 #[cfg(test)]
 mod test {
-    use super::server;
-    use super::client;
     use std::io::{Read, Write};
     use std::io;
     use std::net::TcpStream;
@@ -47,7 +59,7 @@ mod test {
     use std::time::Duration;
     use std::collections::HashMap;
     use proj_crypto::asymmetric::{key_id, PublicKey};
-    use common::*;
+    use super::*;
 
     const MESSAGE_SIZE: usize = 256;
     const NUM_CLIENTS: usize = 10;

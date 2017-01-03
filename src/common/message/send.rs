@@ -22,7 +22,7 @@ use proj_crypto::symmetric;
 use sodiumoxide::crypto::hash::sha256;
 use sodiumoxide::utils::memzero;
 use sodiumoxide::randombytes;
-use super::super::{SessionKeys, Keypair};
+use {SessionKeys, Keypair};
 
 /// The number of bytes in the random challenge
 const CHALLENGE_BYES: usize = 32;

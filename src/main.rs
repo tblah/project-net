@@ -23,13 +23,15 @@ use std::process;
 use std::fs::OpenOptions;
 use std::fs;
 use std::os::unix::fs::OpenOptionsExt;
-use proj_crypto::asymmetric::key_exchange;
+use std::collections::HashMap;
+use proj_crypto::asymmetric::*;
 use std::io::Write;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 use proj_net::client;
 use proj_net::server;
+use proj_net::Keypair;
 
 const DEFAULT_SOCKET_ADDR: &'static str = "127.0.0.1:1025";
 
@@ -65,7 +67,7 @@ fn main() {
     opts.optopt("", "client", "Start a client", "MY_KEYPAIR");
 
     // required for client and server mode
-    opts.optopt("k", "public-key", "The public key of the target", "PUBLIC_KEY_FILE");
+    opts.optopt("k", "public-key", "The trusted public keys", "PUBLIC_KEY_FILE");
 
     // optional for client and server modes
     opts.optopt("s", "socket", &format!("The socket to listen on (server) or to connect to (client). The default is {}.", DEFAULT_SOCKET_ADDR), "IPADDR:PORT");
@@ -203,16 +205,22 @@ fn hex_to_byte(hex: Vec<char>) -> u8 {
 }
 
 /// returns a file so as to give it back to the caller (it was borrowed to get here)
-fn get_key_from_file(mut file: fs::File, prefix: &str) -> (fs::File, Vec<u8>) {
+fn get_key_from_file(mut file: fs::File, prefix: &str) -> Option<(fs::File, Vec<u8>)> {
     let prefix_expected = String::from(prefix) + ": ";
     let mut prefix_read_bytes: [u8; 4] = [0; 4]; // e.g. "PK: "
 
     match file.read(&mut prefix_read_bytes) {
         Ok(_) => (),
-        Err(e) => panic!("Error reading file: {}", e),
+        Err(_) => return None,
     };
 
-    if prefix_read_bytes != prefix_expected.as_bytes() { panic!("The prefix read (as bytes) was {:?}, we expected {:?} ('{}'). Is the file malformed?", prefix_read_bytes, prefix_expected.as_bytes(), prefix_expected); }
+    if prefix_read_bytes != prefix_expected.as_bytes() {
+        if prefix_read_bytes != [10, 0, 0, 0]  { // 10 (denary) is linefeed in ascii
+            panic!("The prefix read (as bytes) was {:?}, we expected {:?} ('{}'). Is the file malformed?", prefix_read_bytes, prefix_expected.as_bytes(), prefix_expected);
+        } else { // we just got a linefeed so there is nothing to read
+            return None;
+        }
+    }
 
     let mut key_hex_bytes: [u8; 64+31] = [0; 64+31]; // 64 characters and 31 spaces
 
@@ -233,7 +241,7 @@ fn get_key_from_file(mut file: fs::File, prefix: &str) -> (fs::File, Vec<u8>) {
         .collect();
 
 
-    (file, key)
+    Some((file, key))
 }
 
 fn open_or_panic(path: &str) -> fs::File {
@@ -243,51 +251,65 @@ fn open_or_panic(path: &str) -> fs::File {
     }
 }
 
-/// returns (my_pk, my_sk, their_pk)
-/*fn get_keys(my_keypair_path: &str, their_pk_path: &str) -> key_exchange::LongTermKeys {
+fn get_keys(my_keypair_path: &str, their_pk_path: &str) -> (HashMap<key_id::PublicKeyId, PublicKey>, Keypair) {
     let my_keypair_file = open_or_panic(my_keypair_path);
-    let their_pk_file = open_or_panic(their_pk_path);
+    let mut pk_file = open_or_panic(their_pk_path);
 
-    let (mut my_keypair_file, pk_bytes) = get_key_from_file(my_keypair_file, "PK");
-    let (_, their_pk_bytes) = get_key_from_file(their_pk_file, "PK");
+    // get my keypair
+    let (mut my_keypair_file, pk_bytes) = get_key_from_file(my_keypair_file, "PK").unwrap();
 
     // seek to the start of SK
     my_keypair_file.seek(SeekFrom::Start(4+64+31+1)).unwrap(); // 4 byte prefix + 64 bytes of hex + 31 spaces + newline
-    let (_, sk_bytes) = get_key_from_file(my_keypair_file, "SK");
+    let (_, sk_bytes) = get_key_from_file(my_keypair_file, "SK").unwrap();
 
-    let pk = key_exchange::public_key_from_slice(&pk_bytes).unwrap();
-    let their_pk = key_exchange::public_key_from_slice(&their_pk_bytes).unwrap();
-    let sk = key_exchange::secret_key_from_slice(&sk_bytes).unwrap();
+    let my_pk = public_key_from_slice(&pk_bytes).unwrap();
+    let my_sk = secret_key_from_slice(&sk_bytes).unwrap();
 
-    key_exchange::LongTermKeys {
-        my_public_key: pk,
-        my_secret_key: sk,
-        their_public_key: their_pk,
+    // get the trusted public keys
+    let mut pks = HashMap::new();
+    loop {
+        let result = get_key_from_file(pk_file, "PK");
+
+        if result.is_none() {
+            break;
+        }
+
+        // else
+        let (pk_file_tmp, pk_bytes) = result.unwrap();
+        pk_file = pk_file_tmp; // got to love the borrow checker
+        let pk = public_key_from_slice(&pk_bytes).unwrap();
+        let pk_id = key_id::id_of_pk(&pk);
+        pks.insert(pk_id, pk);
     }
-}*/
 
-fn server(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
-/*    let listener = match server::listen(socket) {
+    (pks, (my_pk, my_sk))
+}
+
+fn server(my_keypair_path: &str, pk_path: &str, socket: &str) {
+    let listener = match server::listen(socket) {
         Err(e) => panic!("Server failed to start with error {:?}", e),
         Ok(l) => l,
     };
 
-    let mut server = server::do_key_exchange(listener.incoming().next().unwrap(),
-                                             get_keys(my_keypair_path, their_pk_path)).unwrap();
+    let (pks, keypair) = get_keys(my_keypair_path, pk_path);
+
+    let mut server = server::do_key_exchange(listener.incoming().next().unwrap(), &keypair, &pks).unwrap();
 
     server.blocking_off(1);
 
-    interactive(&mut server);*/
+    interactive(&mut server);
 }
 
-fn client(my_keypair_path: &str, their_pk_path: &str, socket: &str) {
-/*    let mut client = match client::start(socket, get_keys(my_keypair_path, their_pk_path)) {
+fn client(my_keypair_path: &str, pk_path: &str, socket: &str) {
+    let (pks, keypair) = get_keys(my_keypair_path, pk_path);
+    
+    let mut client = match client::start(socket, keypair, &pks) {
         Err(e) => panic!("Client failed to start with error {:?}", e),
         Ok(c) => c,
     };
     client.blocking_off(1);
 
-    interactive(&mut client);*/
+    interactive(&mut client);
 }       
 
 fn interactive<T: Read + Write>(channel: &mut T) -> ! {

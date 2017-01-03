@@ -21,6 +21,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 use std::net::Shutdown;
 use proj_crypto::asymmetric::*;
+use Keypair;
 
 /// Structure containing the state for a running client
 pub struct Client {

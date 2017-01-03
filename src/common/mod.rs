@@ -19,18 +19,7 @@ use std::io::Write;
 use std::net::TcpStream;
 use std::net::Shutdown;
 use proj_crypto::symmetric;
-use proj_crypto::asymmetric::*;
-
-/// Simple tuple of a public key and a secret key
-pub type Keypair = (PublicKey, SecretKey);
-
-/// Stores session keys
-pub struct SessionKeys {
-    /// symmetric state for use with messages to be sent or received from the device
-    pub from_device: symmetric::State,
-    /// symmetric state for use with message to be sent or received from the server
-    pub from_server: symmetric::State,
-}
+use {Keypair, SessionKeys};
 
 /// Errors returned by the client or server
 #[derive(Debug)]
