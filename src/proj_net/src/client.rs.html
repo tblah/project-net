@@ -185,6 +185,9 @@
 <span id="141">141</span>
 <span id="142">142</span>
 <span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
 </pre><pre class='rust '>
 <span class='doccomment'>//! Client functionality</span>
 
@@ -202,12 +205,14 @@
 
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>sodiumoxide</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>net</span>;
-<span class='kw'>use</span> <span class='ident'>proj_crypto</span>::<span class='ident'>asymmetric</span>::<span class='ident'>LongTermKeys</span>;
 <span class='kw'>use</span> <span class='kw'>super</span>::<span class='ident'>common</span>::<span class='op'>*</span>;
 <span class='kw'>use</span> <span class='kw'>super</span>::<span class='ident'>common</span>::<span class='ident'>message</span>::{<span class='ident'>receive</span>, <span class='ident'>send</span>, <span class='ident'>MessageContent</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::<span class='ident'>HashMap</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>time</span>::<span class='ident'>Duration</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>net</span>::<span class='ident'>Shutdown</span>;
+<span class='kw'>use</span> <span class='ident'>proj_crypto</span>::<span class='ident'>asymmetric</span>::<span class='op'>*</span>;
+<span class='kw'>use</span> <span class='ident'>Keypair</span>;
 
 <span class='doccomment'>/// Structure containing the state for a running client</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Client</span> {
@@ -216,7 +221,7 @@
 }
 
 <span class='doccomment'>/// Creates a new client and performs a key exchange</span>
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>start</span>(<span class='ident'>socket_addr</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>, <span class='ident'>long_keys</span>: <span class='ident'>LongTermKeys</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Client</span>, <span class='ident'>Error</span><span class='op'>&gt;</span> {
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>start</span>(<span class='ident'>socket_addr</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>, <span class='ident'>long_keypair</span>: <span class='ident'>Keypair</span>, <span class='ident'>trusted_pks</span>: <span class='kw-2'>&amp;</span><span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>key_id</span>::<span class='ident'>PublicKeyId</span>, <span class='ident'>PublicKey</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Client</span>, <span class='ident'>Error</span><span class='op'>&gt;</span> {
     <span class='ident'>sodiumoxide</span>::<span class='ident'>init</span>();
     <span class='comment'>// attempt connection</span>
     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>stream</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>net</span>::<span class='ident'>TcpStream</span>::<span class='ident'>connect</span>(<span class='ident'>socket_addr</span>) {
@@ -230,7 +235,7 @@
     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>expected_next_n</span>: <span class='ident'>u16</span> <span class='op'>=</span> <span class='number'>0</span>;
 
     <span class='comment'>// send device first</span>
-    <span class='kw'>let</span> <span class='ident'>keypair</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>send</span>::<span class='ident'>device_first</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>stream</span>) {
+    <span class='kw'>let</span> <span class='ident'>session_keypair</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>send</span>::<span class='ident'>device_first</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>stream</span>, <span class='kw-2'>&amp;</span><span class='ident'>long_keypair</span>.<span class='number'>0</span>) {
         <span class='prelude-val'>Ok</span>(<span class='ident'>k</span>) <span class='op'>=&gt;</span> <span class='ident'>k</span>,
         <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=&gt;</span> {
             <span class='ident'>log</span>(<span class='string'>&quot;Problem sending device_first&quot;</span>, <span class='ident'>LOG_RELEASE</span>);
@@ -240,7 +245,7 @@
     <span class='ident'>log</span>(<span class='string'>&quot;Sent device_first successfully&quot;</span>, <span class='ident'>LOG_DEBUG</span>);
 
     <span class='comment'>// receive server response</span>
-    <span class='kw'>let</span> <span class='ident'>server_first</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>receive</span>::<span class='ident'>server_first</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>stream</span>, <span class='kw-2'>&amp;</span><span class='ident'>long_keys</span>, <span class='kw-2'>&amp;</span><span class='ident'>keypair</span>) {
+    <span class='kw'>let</span> <span class='ident'>server_first</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>receive</span>::<span class='ident'>server_first</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>stream</span>, <span class='kw-2'>&amp;</span><span class='ident'>session_keypair</span>, <span class='ident'>trusted_pks</span>) {
         <span class='prelude-val'>Ok</span>(<span class='ident'>m</span>) <span class='op'>=&gt;</span> <span class='ident'>m</span>,
         <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=&gt;</span> {
             <span class='ident'>log</span>(<span class='string'>&quot;Failed to receive server_first&quot;</span>, <span class='ident'>LOG_RELEASE</span>);
@@ -255,15 +260,15 @@
         <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>Error</span>::<span class='ident'>BadMessageN</span>);
     }
 
-    <span class='kw'>let</span> (<span class='ident'>server_pk</span>, <span class='ident'>challenge</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>server_first</span>.<span class='ident'>content</span> {
-        <span class='ident'>MessageContent</span>::<span class='ident'>ServerFirst</span>(<span class='ident'>pk</span>, <span class='ident'>c</span>) <span class='op'>=&gt;</span> (<span class='ident'>pk</span>, <span class='ident'>c</span>),
+    <span class='kw'>let</span> (<span class='ident'>server_session_pk</span>, <span class='ident'>challenge</span>, <span class='ident'>server_long_pk</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>server_first</span>.<span class='ident'>content</span> {
+        <span class='ident'>MessageContent</span>::<span class='ident'>ServerFirst</span>(<span class='ident'>pk</span>, <span class='ident'>c</span>, <span class='ident'>long_pk</span>) <span class='op'>=&gt;</span> (<span class='ident'>pk</span>, <span class='ident'>c</span>, <span class='ident'>long_pk</span>),
         _ <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>Error</span>::<span class='ident'>ServerFirst</span>(<span class='ident'>message</span>::<span class='ident'>Error</span>::<span class='ident'>InvalidOpcode</span>)),
     };
 
     <span class='ident'>log</span>(<span class='string'>&quot;received server_first successfully&quot;</span>, <span class='ident'>LOG_DEBUG</span>);    
 
     <span class='comment'>// send challenge response</span>
-    <span class='kw'>let</span> <span class='ident'>session_keys</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>send</span>::<span class='ident'>device_second</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>stream</span>, <span class='kw-2'>&amp;</span><span class='ident'>long_keys</span>, <span class='kw-2'>&amp;</span><span class='ident'>server_pk</span>, <span class='kw-2'>&amp;</span><span class='ident'>challenge</span>, <span class='kw-2'>&amp;</span><span class='ident'>keypair</span>) {
+    <span class='kw'>let</span> <span class='ident'>session_keys</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>send</span>::<span class='ident'>device_second</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>stream</span>, <span class='kw-2'>&amp;</span><span class='ident'>server_long_pk</span>, <span class='kw-2'>&amp;</span><span class='ident'>server_session_pk</span>, <span class='kw-2'>&amp;</span><span class='ident'>challenge</span>, <span class='kw-2'>&amp;</span><span class='ident'>long_keypair</span>, <span class='kw-2'>&amp;</span><span class='ident'>session_keypair</span>) {
         <span class='prelude-val'>Ok</span>(<span class='ident'>sk</span>) <span class='op'>=&gt;</span> <span class='ident'>sk</span>,
         <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>Error</span>::<span class='ident'>DeviceSecond</span>(<span class='ident'>e</span>)),
     };
@@ -272,7 +277,7 @@
 
     <span class='kw'>let</span> <span class='ident'>client</span> <span class='op'>=</span> <span class='ident'>ProtocolState</span> {
         <span class='ident'>stream</span>: <span class='ident'>stream</span>,
-        <span class='ident'>long_keys</span>: <span class='ident'>long_keys</span>,
+        <span class='ident'>long_keypair</span>: <span class='ident'>long_keypair</span>,
         <span class='ident'>next_send_n</span>: <span class='number'>2</span>,
         <span class='ident'>next_recv_n</span>: <span class='ident'>expected_next_n</span>,
         <span class='ident'>session_keys</span>: <span class='ident'>session_keys</span>,
@@ -329,6 +334,7 @@
         <span class='self'>self</span>.<span class='ident'>state</span>.<span class='ident'>stream</span>.<span class='ident'>set_read_timeout</span>(<span class='prelude-val'>None</span>).<span class='ident'>unwrap</span>();
     }
 }
+
 </pre>
 </section>
     <section id='search' class="content hidden"></section>

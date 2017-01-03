@@ -358,6 +358,32 @@
 <span id="314">314</span>
 <span id="315">315</span>
 <span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
 </pre><pre class='rust '>
 <span class='doccomment'>//! Executable for demonstrating client and server functionality</span>
 
@@ -384,13 +410,15 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fs</span>::<span class='ident'>OpenOptions</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fs</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>os</span>::<span class='ident'>unix</span>::<span class='ident'>fs</span>::<span class='ident'>OpenOptionsExt</span>;
-<span class='kw'>use</span> <span class='ident'>proj_crypto</span>::<span class='ident'>asymmetric</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::<span class='ident'>HashMap</span>;
+<span class='kw'>use</span> <span class='ident'>proj_crypto</span>::<span class='ident'>asymmetric</span>::<span class='op'>*</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>::<span class='ident'>Write</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>::<span class='ident'>Read</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>::<span class='ident'>Seek</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>::<span class='ident'>SeekFrom</span>;
 <span class='kw'>use</span> <span class='ident'>proj_net</span>::<span class='ident'>client</span>;
 <span class='kw'>use</span> <span class='ident'>proj_net</span>::<span class='ident'>server</span>;
+<span class='kw'>use</span> <span class='ident'>proj_net</span>::<span class='ident'>Keypair</span>;
 
 <span class='kw'>const</span> <span class='ident'>DEFAULT_SOCKET_ADDR</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;static</span> <span class='ident'>str</span> <span class='op'>=</span> <span class='string'>&quot;127.0.0.1:1025&quot;</span>;
 
@@ -426,7 +454,7 @@
     <span class='ident'>opts</span>.<span class='ident'>optopt</span>(<span class='string'>&quot;&quot;</span>, <span class='string'>&quot;client&quot;</span>, <span class='string'>&quot;Start a client&quot;</span>, <span class='string'>&quot;MY_KEYPAIR&quot;</span>);
 
     <span class='comment'>// required for client and server mode</span>
-    <span class='ident'>opts</span>.<span class='ident'>optopt</span>(<span class='string'>&quot;k&quot;</span>, <span class='string'>&quot;public-key&quot;</span>, <span class='string'>&quot;The public key of the target&quot;</span>, <span class='string'>&quot;PUBLIC_KEY_FILE&quot;</span>);
+    <span class='ident'>opts</span>.<span class='ident'>optopt</span>(<span class='string'>&quot;k&quot;</span>, <span class='string'>&quot;public-key&quot;</span>, <span class='string'>&quot;The trusted public keys&quot;</span>, <span class='string'>&quot;PUBLIC_KEY_FILE&quot;</span>);
 
     <span class='comment'>// optional for client and server modes</span>
     <span class='ident'>opts</span>.<span class='ident'>optopt</span>(<span class='string'>&quot;s&quot;</span>, <span class='string'>&quot;socket&quot;</span>, <span class='kw-2'>&amp;</span><span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;The socket to listen on (server) or to connect to (client). The default is {}.&quot;</span>, <span class='ident'>DEFAULT_SOCKET_ADDR</span>), <span class='string'>&quot;IPADDR:PORT&quot;</span>);
@@ -508,7 +536,7 @@
     };
 
     <span class='ident'>sodiumoxide</span>::<span class='ident'>init</span>();
-    <span class='kw'>let</span> (<span class='ident'>pk</span>, <span class='ident'>sk</span>) <span class='op'>=</span> <span class='ident'>asymmetric</span>::<span class='ident'>gen_keypair</span>();
+    <span class='kw'>let</span> (<span class='ident'>pk</span>, <span class='ident'>sk</span>) <span class='op'>=</span> <span class='ident'>key_exchange</span>::<span class='ident'>gen_keypair</span>();
 
     <span class='comment'>// unwraps to make sure we panic if something doesn&#39;t work</span>
     <span class='kw'>let</span> _ <span class='op'>=</span> <span class='ident'>file</span>.<span class='ident'>write</span>(<span class='string'>b&quot;PK: &quot;</span>).<span class='ident'>unwrap</span>();
@@ -564,16 +592,22 @@
 }
 
 <span class='doccomment'>/// returns a file so as to give it back to the caller (it was borrowed to get here)</span>
-<span class='kw'>fn</span> <span class='ident'>get_key_from_file</span>(<span class='kw-2'>mut</span> <span class='ident'>file</span>: <span class='ident'>fs</span>::<span class='ident'>File</span>, <span class='ident'>prefix</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>) <span class='op'>-&gt;</span> (<span class='ident'>fs</span>::<span class='ident'>File</span>, <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>) {
+<span class='kw'>fn</span> <span class='ident'>get_key_from_file</span>(<span class='kw-2'>mut</span> <span class='ident'>file</span>: <span class='ident'>fs</span>::<span class='ident'>File</span>, <span class='ident'>prefix</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span>(<span class='ident'>fs</span>::<span class='ident'>File</span>, <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span>)<span class='op'>&gt;</span> {
     <span class='kw'>let</span> <span class='ident'>prefix_expected</span> <span class='op'>=</span> <span class='ident'>String</span>::<span class='ident'>from</span>(<span class='ident'>prefix</span>) <span class='op'>+</span> <span class='string'>&quot;: &quot;</span>;
     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>prefix_read_bytes</span>: [<span class='ident'>u8</span>; <span class='number'>4</span>] <span class='op'>=</span> [<span class='number'>0</span>; <span class='number'>4</span>]; <span class='comment'>// e.g. &quot;PK: &quot;</span>
 
     <span class='kw'>match</span> <span class='ident'>file</span>.<span class='ident'>read</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>prefix_read_bytes</span>) {
         <span class='prelude-val'>Ok</span>(_) <span class='op'>=&gt;</span> (),
-        <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;Error reading file: {}&quot;</span>, <span class='ident'>e</span>),
+        <span class='prelude-val'>Err</span>(_) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>None</span>,
     };
 
-    <span class='kw'>if</span> <span class='ident'>prefix_read_bytes</span> <span class='op'>!=</span> <span class='ident'>prefix_expected</span>.<span class='ident'>as_bytes</span>() { <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;The prefix read (as bytes) was {:?}, we expected {:?} (&#39;{}&#39;). Is the file malformed?&quot;</span>, <span class='ident'>prefix_read_bytes</span>, <span class='ident'>prefix_expected</span>.<span class='ident'>as_bytes</span>(), <span class='ident'>prefix_expected</span>); }
+    <span class='kw'>if</span> <span class='ident'>prefix_read_bytes</span> <span class='op'>!=</span> <span class='ident'>prefix_expected</span>.<span class='ident'>as_bytes</span>() {
+        <span class='kw'>if</span> <span class='ident'>prefix_read_bytes</span> <span class='op'>!=</span> [<span class='number'>10</span>, <span class='number'>0</span>, <span class='number'>0</span>, <span class='number'>0</span>]  { <span class='comment'>// 10 (denary) is linefeed in ascii</span>
+            <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;The prefix read (as bytes) was {:?}, we expected {:?} (&#39;{}&#39;). Is the file malformed?&quot;</span>, <span class='ident'>prefix_read_bytes</span>, <span class='ident'>prefix_expected</span>.<span class='ident'>as_bytes</span>(), <span class='ident'>prefix_expected</span>);
+        } <span class='kw'>else</span> { <span class='comment'>// we just got a linefeed so there is nothing to read</span>
+            <span class='kw'>return</span> <span class='prelude-val'>None</span>;
+        }
+    }
 
     <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>key_hex_bytes</span>: [<span class='ident'>u8</span>; <span class='number'>64</span><span class='op'>+</span><span class='number'>31</span>] <span class='op'>=</span> [<span class='number'>0</span>; <span class='number'>64</span><span class='op'>+</span><span class='number'>31</span>]; <span class='comment'>// 64 characters and 31 spaces</span>
 
@@ -594,7 +628,7 @@
         .<span class='ident'>collect</span>();
 
 
-    (<span class='ident'>file</span>, <span class='ident'>key</span>)
+    <span class='prelude-val'>Some</span>((<span class='ident'>file</span>, <span class='ident'>key</span>))
 }
 
 <span class='kw'>fn</span> <span class='ident'>open_or_panic</span>(<span class='ident'>path</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='ident'>fs</span>::<span class='ident'>File</span> {
@@ -604,41 +638,59 @@
     }
 }
 
-<span class='doccomment'>/// returns (my_pk, my_sk, their_pk)</span>
-<span class='kw'>fn</span> <span class='ident'>get_keys</span>(<span class='ident'>my_keypair_path</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>, <span class='ident'>their_pk_path</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>) <span class='op'>-&gt;</span> <span class='ident'>asymmetric</span>::<span class='ident'>LongTermKeys</span> {
+<span class='kw'>fn</span> <span class='ident'>get_keys</span>(<span class='ident'>my_keypair_path</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>, <span class='ident'>their_pk_path</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>) <span class='op'>-&gt;</span> (<span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>key_id</span>::<span class='ident'>PublicKeyId</span>, <span class='ident'>PublicKey</span><span class='op'>&gt;</span>, <span class='ident'>Keypair</span>) {
     <span class='kw'>let</span> <span class='ident'>my_keypair_file</span> <span class='op'>=</span> <span class='ident'>open_or_panic</span>(<span class='ident'>my_keypair_path</span>);
-    <span class='kw'>let</span> <span class='ident'>their_pk_file</span> <span class='op'>=</span> <span class='ident'>open_or_panic</span>(<span class='ident'>their_pk_path</span>);
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>pk_file</span> <span class='op'>=</span> <span class='ident'>open_or_panic</span>(<span class='ident'>their_pk_path</span>);
 
-    <span class='kw'>let</span> (<span class='kw-2'>mut</span> <span class='ident'>my_keypair_file</span>, <span class='ident'>pk_bytes</span>) <span class='op'>=</span> <span class='ident'>get_key_from_file</span>(<span class='ident'>my_keypair_file</span>, <span class='string'>&quot;PK&quot;</span>);
-    <span class='kw'>let</span> (_, <span class='ident'>their_pk_bytes</span>) <span class='op'>=</span> <span class='ident'>get_key_from_file</span>(<span class='ident'>their_pk_file</span>, <span class='string'>&quot;PK&quot;</span>);
+    <span class='comment'>// get my keypair</span>
+    <span class='kw'>let</span> (<span class='kw-2'>mut</span> <span class='ident'>my_keypair_file</span>, <span class='ident'>pk_bytes</span>) <span class='op'>=</span> <span class='ident'>get_key_from_file</span>(<span class='ident'>my_keypair_file</span>, <span class='string'>&quot;PK&quot;</span>).<span class='ident'>unwrap</span>();
 
     <span class='comment'>// seek to the start of SK</span>
     <span class='ident'>my_keypair_file</span>.<span class='ident'>seek</span>(<span class='ident'>SeekFrom</span>::<span class='ident'>Start</span>(<span class='number'>4</span><span class='op'>+</span><span class='number'>64</span><span class='op'>+</span><span class='number'>31</span><span class='op'>+</span><span class='number'>1</span>)).<span class='ident'>unwrap</span>(); <span class='comment'>// 4 byte prefix + 64 bytes of hex + 31 spaces + newline</span>
-    <span class='kw'>let</span> (_, <span class='ident'>sk_bytes</span>) <span class='op'>=</span> <span class='ident'>get_key_from_file</span>(<span class='ident'>my_keypair_file</span>, <span class='string'>&quot;SK&quot;</span>);
+    <span class='kw'>let</span> (_, <span class='ident'>sk_bytes</span>) <span class='op'>=</span> <span class='ident'>get_key_from_file</span>(<span class='ident'>my_keypair_file</span>, <span class='string'>&quot;SK&quot;</span>).<span class='ident'>unwrap</span>();
 
-    <span class='kw'>let</span> <span class='ident'>pk</span> <span class='op'>=</span> <span class='ident'>asymmetric</span>::<span class='ident'>public_key_from_slice</span>(<span class='kw-2'>&amp;</span><span class='ident'>pk_bytes</span>).<span class='ident'>unwrap</span>();
-    <span class='kw'>let</span> <span class='ident'>their_pk</span> <span class='op'>=</span> <span class='ident'>asymmetric</span>::<span class='ident'>public_key_from_slice</span>(<span class='kw-2'>&amp;</span><span class='ident'>their_pk_bytes</span>).<span class='ident'>unwrap</span>();
-    <span class='kw'>let</span> <span class='ident'>sk</span> <span class='op'>=</span> <span class='ident'>asymmetric</span>::<span class='ident'>secret_key_from_slice</span>(<span class='kw-2'>&amp;</span><span class='ident'>sk_bytes</span>).<span class='ident'>unwrap</span>();
+    <span class='kw'>let</span> <span class='ident'>my_pk</span> <span class='op'>=</span> <span class='ident'>public_key_from_slice</span>(<span class='kw-2'>&amp;</span><span class='ident'>pk_bytes</span>).<span class='ident'>unwrap</span>();
+    <span class='kw'>let</span> <span class='ident'>my_sk</span> <span class='op'>=</span> <span class='ident'>secret_key_from_slice</span>(<span class='kw-2'>&amp;</span><span class='ident'>sk_bytes</span>).<span class='ident'>unwrap</span>();
 
-    <span class='ident'>asymmetric</span>::<span class='ident'>LongTermKeys</span> {
-        <span class='ident'>my_public_key</span>: <span class='ident'>pk</span>,
-        <span class='ident'>my_secret_key</span>: <span class='ident'>sk</span>,
-        <span class='ident'>their_public_key</span>: <span class='ident'>their_pk</span>,
+    <span class='comment'>// get the trusted public keys</span>
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>pks</span> <span class='op'>=</span> <span class='ident'>HashMap</span>::<span class='ident'>new</span>();
+    <span class='kw'>loop</span> {
+        <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>get_key_from_file</span>(<span class='ident'>pk_file</span>, <span class='string'>&quot;PK&quot;</span>);
+
+        <span class='kw'>if</span> <span class='ident'>result</span>.<span class='ident'>is_none</span>() {
+            <span class='kw'>break</span>;
+        }
+
+        <span class='comment'>// else</span>
+        <span class='kw'>let</span> (<span class='ident'>pk_file_tmp</span>, <span class='ident'>pk_bytes</span>) <span class='op'>=</span> <span class='ident'>result</span>.<span class='ident'>unwrap</span>();
+        <span class='ident'>pk_file</span> <span class='op'>=</span> <span class='ident'>pk_file_tmp</span>; <span class='comment'>// got to love the borrow checker</span>
+        <span class='kw'>let</span> <span class='ident'>pk</span> <span class='op'>=</span> <span class='ident'>public_key_from_slice</span>(<span class='kw-2'>&amp;</span><span class='ident'>pk_bytes</span>).<span class='ident'>unwrap</span>();
+        <span class='kw'>let</span> <span class='ident'>pk_id</span> <span class='op'>=</span> <span class='ident'>key_id</span>::<span class='ident'>id_of_pk</span>(<span class='kw-2'>&amp;</span><span class='ident'>pk</span>);
+        <span class='ident'>pks</span>.<span class='ident'>insert</span>(<span class='ident'>pk_id</span>, <span class='ident'>pk</span>);
     }
+
+    (<span class='ident'>pks</span>, (<span class='ident'>my_pk</span>, <span class='ident'>my_sk</span>))
 }
 
-<span class='kw'>fn</span> <span class='ident'>server</span>(<span class='ident'>my_keypair_path</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>, <span class='ident'>their_pk_path</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>, <span class='ident'>socket</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>) {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>server</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>server</span>::<span class='ident'>start</span>(<span class='ident'>socket</span>, <span class='ident'>get_keys</span>(<span class='ident'>my_keypair_path</span>, <span class='ident'>their_pk_path</span>)) {
+<span class='kw'>fn</span> <span class='ident'>server</span>(<span class='ident'>my_keypair_path</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>, <span class='ident'>pk_path</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>, <span class='ident'>socket</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>) {
+    <span class='kw'>let</span> <span class='ident'>listener</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>server</span>::<span class='ident'>listen</span>(<span class='ident'>socket</span>) {
         <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;Server failed to start with error {:?}&quot;</span>, <span class='ident'>e</span>),
-        <span class='prelude-val'>Ok</span>(<span class='ident'>s</span>) <span class='op'>=&gt;</span> <span class='ident'>s</span>,
+        <span class='prelude-val'>Ok</span>(<span class='ident'>l</span>) <span class='op'>=&gt;</span> <span class='ident'>l</span>,
     };
+
+    <span class='kw'>let</span> (<span class='ident'>pks</span>, <span class='ident'>keypair</span>) <span class='op'>=</span> <span class='ident'>get_keys</span>(<span class='ident'>my_keypair_path</span>, <span class='ident'>pk_path</span>);
+
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>server</span> <span class='op'>=</span> <span class='ident'>server</span>::<span class='ident'>do_key_exchange</span>(<span class='ident'>listener</span>.<span class='ident'>incoming</span>().<span class='ident'>next</span>().<span class='ident'>unwrap</span>(), <span class='kw-2'>&amp;</span><span class='ident'>keypair</span>, <span class='kw-2'>&amp;</span><span class='ident'>pks</span>).<span class='ident'>unwrap</span>();
+
     <span class='ident'>server</span>.<span class='ident'>blocking_off</span>(<span class='number'>1</span>);
 
     <span class='ident'>interactive</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>server</span>);
 }
 
-<span class='kw'>fn</span> <span class='ident'>client</span>(<span class='ident'>my_keypair_path</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>, <span class='ident'>their_pk_path</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>, <span class='ident'>socket</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>) {
-    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>client</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>client</span>::<span class='ident'>start</span>(<span class='ident'>socket</span>, <span class='ident'>get_keys</span>(<span class='ident'>my_keypair_path</span>, <span class='ident'>their_pk_path</span>)) {
+<span class='kw'>fn</span> <span class='ident'>client</span>(<span class='ident'>my_keypair_path</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>, <span class='ident'>pk_path</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>, <span class='ident'>socket</span>: <span class='kw-2'>&amp;</span><span class='ident'>str</span>) {
+    <span class='kw'>let</span> (<span class='ident'>pks</span>, <span class='ident'>keypair</span>) <span class='op'>=</span> <span class='ident'>get_keys</span>(<span class='ident'>my_keypair_path</span>, <span class='ident'>pk_path</span>);
+    
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>client</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>client</span>::<span class='ident'>start</span>(<span class='ident'>socket</span>, <span class='ident'>keypair</span>, <span class='kw-2'>&amp;</span><span class='ident'>pks</span>) {
         <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;Client failed to start with error {:?}&quot;</span>, <span class='ident'>e</span>),
         <span class='prelude-val'>Ok</span>(<span class='ident'>c</span>) <span class='op'>=&gt;</span> <span class='ident'>c</span>,
     };

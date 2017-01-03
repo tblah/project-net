@@ -308,6 +308,43 @@
 <span id="264">264</span>
 <span id="265">265</span>
 <span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
 </pre><pre class='rust '>
 <span class='doccomment'>//! For receiving messages</span>
 
@@ -328,9 +365,15 @@ along with project-net.  If not, see http://www.gnu.org/licenses/.*/</span>
 <span class='kw'>use</span> <span class='kw'>super</span>::<span class='ident'>Error</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>;
 <span class='kw'>use</span> <span class='ident'>proj_crypto</span>::<span class='ident'>asymmetric</span>::<span class='op'>*</span>;
+<span class='kw'>use</span> <span class='ident'>proj_crypto</span>::<span class='ident'>asymmetric</span>::<span class='ident'>key_exchange</span>::<span class='op'>*</span>;
+<span class='kw'>use</span> <span class='ident'>proj_crypto</span>::<span class='ident'>asymmetric</span>::<span class='ident'>key_id</span>::<span class='op'>*</span>;
 <span class='kw'>use</span> <span class='ident'>proj_crypto</span>::<span class='ident'>symmetric</span>::<span class='ident'>AUTH_TAG_BYTES</span>;
 <span class='kw'>use</span> <span class='ident'>proj_crypto</span>::<span class='ident'>symmetric</span>;
-<span class='kw'>use</span> <span class='kw'>super</span>::{<span class='ident'>Message</span>, <span class='ident'>Keypair</span>};
+<span class='kw'>use</span> <span class='ident'>sodiumoxide</span>::<span class='ident'>crypto</span>::<span class='ident'>hash</span>::<span class='ident'>sha256</span>;
+<span class='kw'>use</span> <span class='ident'>sodiumoxide</span>::<span class='ident'>utils</span>::<span class='ident'>memcmp</span>;
+<span class='kw'>use</span> <span class='kw'>super</span>::{<span class='ident'>Message</span>, <span class='ident'>CHALLENGE_BYTES</span>};
+<span class='kw'>use</span> {<span class='ident'>SessionKeys</span>, <span class='ident'>Keypair</span>};
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::<span class='ident'>HashMap</span>;
 
 <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>receive_device_first</span> <span class='op'>&lt;</span><span class='ident'>R</span>: <span class='ident'>io</span>::<span class='ident'>Read</span><span class='op'>&gt;</span> (<span class='ident'>source</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>R</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Message</span>, <span class='ident'>Error</span><span class='op'>&gt;</span> {
     <span class='kw'>let</span> (<span class='ident'>opcode</span>, <span class='ident'>message_number</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>get_header</span>(<span class='ident'>source</span>) {
@@ -340,8 +383,8 @@ along with project-net.  If not, see http://www.gnu.org/licenses/.*/</span>
 
     <span class='ident'>parse_clear_message</span>(<span class='ident'>source</span>, <span class='ident'>opcode</span>, <span class='ident'>message_number</span>)
 }
-        
-<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>server_first</span> <span class='op'>&lt;</span><span class='ident'>R</span>: <span class='ident'>io</span>::<span class='ident'>Read</span><span class='op'>&gt;</span> (<span class='ident'>source</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>R</span>, <span class='ident'>long_term_keys</span>: <span class='kw-2'>&amp;</span><span class='ident'>LongTermKeys</span>, <span class='ident'>session_keypair</span>: <span class='kw-2'>&amp;</span><span class='ident'>Keypair</span> ) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Message</span>, <span class='ident'>Error</span><span class='op'>&gt;</span> {
+ 
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>server_first</span> <span class='op'>&lt;</span><span class='ident'>R</span>: <span class='ident'>io</span>::<span class='ident'>Read</span><span class='op'>&gt;</span> (<span class='ident'>source</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>R</span>, <span class='ident'>session_keypair</span>: <span class='kw-2'>&amp;</span><span class='ident'>Keypair</span>, <span class='ident'>trusted_pks</span>: <span class='kw-2'>&amp;</span><span class='ident'>HashMap</span><span class='op'>&lt;</span><span class='ident'>PublicKeyId</span>, <span class='ident'>PublicKey</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Result</span><span class='op'>&lt;</span><span class='ident'>Message</span>, <span class='ident'>Error</span><span class='op'>&gt;</span> {
     <span class='kw'>let</span> (<span class='kw-2'>ref</span> <span class='ident'>pk_session</span>, <span class='kw-2'>ref</span> <span class='ident'>sk_session</span>) <span class='op'>=</span> <span class='op'>*</span><span class='ident'>session_keypair</span>;
     <span class='kw'>let</span> (<span class='ident'>opcode</span>, <span class='ident'>message_number</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>get_header</span>(<span class='ident'>source</span>) {
         <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>e</span>),
@@ -356,17 +399,34 @@ along with project-net.  If not, see http://www.gnu.org/licenses/.*/</span>
         }
 
         <span class='comment'>// get the content section of the message</span>
-        <span class='kw'>let</span> <span class='ident'>buff</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>get_n_bytes</span>(<span class='ident'>source</span>, <span class='ident'>PUBLIC_KEY_BYTES</span> <span class='op'>+</span> <span class='ident'>CHALLENGE_BYTES</span> <span class='op'>+</span> <span class='ident'>AUTH_TAG_BYTES</span>) {
+        <span class='kw'>let</span> <span class='ident'>buff</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>get_n_bytes</span>(<span class='ident'>source</span>, <span class='ident'>PUBLIC_KEY_BYTES</span> <span class='op'>+</span> <span class='ident'>CHALLENGE_BYTES</span> <span class='op'>+</span> <span class='number'>32</span> <span class='op'>+</span> <span class='ident'>AUTH_TAG_BYTES</span>) { <span class='comment'>// the 32 is for the key id</span>
             <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>e</span>),
             <span class='prelude-val'>Ok</span>(<span class='ident'>x</span>) <span class='op'>=&gt;</span> <span class='ident'>x</span>,
         };
 
-        <span class='comment'>// separate the authentication tag from the message and check that it is correct</span>
-        <span class='kw'>let</span> (<span class='ident'>auth_tag</span>, <span class='ident'>the_rest</span>) <span class='op'>=</span> <span class='ident'>buff</span>.<span class='ident'>split_at</span>(<span class='ident'>AUTH_TAG_BYTES</span>);
-        <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>long_term_keys</span>.<span class='ident'>device_verify_server_msg</span>(<span class='kw-2'>&amp;</span><span class='ident'>pk_session</span>, <span class='kw-2'>&amp;</span><span class='ident'>sk_session</span>, <span class='ident'>the_rest</span>, <span class='ident'>message_number</span>, <span class='ident'>auth_tag</span>) {
-            <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>Error</span>::<span class='ident'>Crypto</span>);
-        }
+        <span class='comment'>// get the key id </span>
+        <span class='kw'>let</span> (<span class='ident'>key_id_bytes</span>, <span class='ident'>authenticated_bit</span>) <span class='op'>=</span> <span class='ident'>buff</span>.<span class='ident'>split_at</span>(<span class='number'>32</span>);
+        <span class='kw'>let</span> <span class='ident'>key_id</span> <span class='op'>=</span> <span class='ident'>PublicKeyId</span> {
+            <span class='ident'>digest</span>: <span class='ident'>sha256</span>::<span class='ident'>Digest</span>::<span class='ident'>from_slice</span>(<span class='ident'>key_id_bytes</span>).<span class='ident'>unwrap</span>(),
+        };
 
+        <span class='kw'>let</span> <span class='ident'>server_long_pk</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>find_public_key</span>(<span class='kw-2'>&amp;</span><span class='ident'>key_id</span>, <span class='ident'>trusted_pks</span>) {
+            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>Error</span>::<span class='ident'>PubKeyId</span>),
+            <span class='prelude-val'>Some</span>(<span class='ident'>pk</span>) <span class='op'>=&gt;</span> <span class='ident'>pk</span>,
+        };
+
+        <span class='comment'>// separate the authentication tag from the message and check that it is correct</span>
+        <span class='kw'>let</span> (<span class='ident'>auth_tag</span>, <span class='ident'>the_rest</span>) <span class='op'>=</span> <span class='ident'>authenticated_bit</span>.<span class='ident'>split_at</span>(<span class='ident'>AUTH_TAG_BYTES</span>);
+
+        <span class='comment'>// derive the authentication key</span>
+        <span class='kw'>let</span> <span class='ident'>from_server_auth</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='ident'>key_exchange</span>(<span class='kw-2'>&amp;</span><span class='ident'>server_long_pk</span>, <span class='kw-2'>&amp;</span><span class='ident'>sk_session</span>, <span class='kw-2'>&amp;</span><span class='ident'>pk_session</span>, <span class='bool-val'>true</span>);
+        <span class='kw'>let</span> <span class='ident'>server_authenticator</span> <span class='op'>=</span> <span class='ident'>symmetric</span>::<span class='ident'>State</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>from_server_auth</span>.<span class='ident'>as_slice</span>(), <span class='kw-2'>&amp;</span><span class='ident'>from_server_auth</span>.<span class='ident'>as_slice</span>()); <span class='comment'>// we don&#39;t use or have encryption keys at this point</span>
+
+        <span class='comment'>// verify authentication tag</span>
+        <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>server_authenticator</span>.<span class='ident'>verify_auth_tag</span>(<span class='ident'>auth_tag</span>, <span class='ident'>the_rest</span>, <span class='ident'>message_number</span>) {
+            <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>Error</span>::<span class='ident'>Crypto</span>);
+        } <span class='comment'>// else continue...</span>
+        
         <span class='comment'>// parse the message</span>
         <span class='kw'>let</span> (<span class='ident'>pub_key_bytes</span>, <span class='ident'>challenge</span>) <span class='op'>=</span> <span class='ident'>the_rest</span>.<span class='ident'>split_at</span>(<span class='ident'>PUBLIC_KEY_BYTES</span>);
         <span class='kw'>let</span> <span class='ident'>pub_key</span> <span class='op'>=</span> <span class='ident'>public_key_from_slice</span>(<span class='ident'>pub_key_bytes</span>).<span class='ident'>unwrap</span>();
@@ -377,7 +437,7 @@ along with project-net.  If not, see http://www.gnu.org/licenses/.*/</span>
             <span class='ident'>challenge_sized</span>[<span class='ident'>i</span>] <span class='op'>=</span> <span class='ident'>challenge</span>[<span class='ident'>i</span>];
         }
 
-        <span class='prelude-val'>Ok</span>(<span class='ident'>Message</span>{ <span class='ident'>number</span>: <span class='ident'>message_number</span>, <span class='ident'>content</span>: <span class='ident'>MessageContent</span>::<span class='ident'>ServerFirst</span>(<span class='ident'>pub_key</span>, <span class='ident'>challenge_sized</span>) })
+        <span class='prelude-val'>Ok</span>(<span class='ident'>Message</span>{ <span class='ident'>number</span>: <span class='ident'>message_number</span>, <span class='ident'>content</span>: <span class='ident'>MessageContent</span>::<span class='ident'>ServerFirst</span>(<span class='ident'>pub_key</span>, <span class='ident'>challenge_sized</span>, <span class='ident'>server_long_pk</span>) })
     } <span class='kw'>else</span> {
         <span class='prelude-val'>Err</span>(<span class='ident'>Error</span>::<span class='ident'>InvalidOpcode</span>)
     }
@@ -402,7 +462,12 @@ along with project-net.  If not, see http://www.gnu.org/licenses/.*/</span>
             <span class='prelude-val'>Ok</span>(<span class='ident'>x</span>) <span class='op'>=&gt;</span> <span class='ident'>x</span>,
         };
 
-        <span class='kw'>if</span> <span class='ident'>server_verify_response</span>(<span class='ident'>session_keys</span>, <span class='kw-2'>&amp;</span><span class='ident'>contents</span>, <span class='ident'>message_number</span>, <span class='ident'>challenge</span>) {
+        <span class='kw'>let</span> <span class='ident'>challenge_recvd</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>session_keys</span>.<span class='ident'>from_device</span>.<span class='ident'>authenticated_decryption</span>(<span class='kw-2'>&amp;</span><span class='ident'>contents</span>, <span class='ident'>message_number</span>) {
+            <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>Error</span>::<span class='ident'>Crypto</span>),
+            <span class='prelude-val'>Some</span>(<span class='ident'>c</span>) <span class='op'>=&gt;</span> <span class='ident'>c</span>,
+        };
+
+        <span class='kw'>if</span> <span class='ident'>memcmp</span>(<span class='kw-2'>&amp;</span><span class='ident'>challenge_recvd</span>, <span class='ident'>challenge</span>) {
             <span class='prelude-val'>Ok</span>(<span class='ident'>Message</span>{ <span class='ident'>number</span>: <span class='ident'>message_number</span>, <span class='ident'>content</span>: <span class='ident'>MessageContent</span>::<span class='ident'>DeviceSecond</span> })
         } <span class='kw'>else</span> {
             <span class='prelude-val'>Err</span>(<span class='ident'>Error</span>::<span class='ident'>Crypto</span>)
@@ -420,7 +485,7 @@ along with project-net.  If not, see http://www.gnu.org/licenses/.*/</span>
 
     <span class='comment'>// these functions check if the opcode is valid for us</span>
     <span class='kw'>if</span> <span class='ident'>opcode</span> <span class='op'>&lt;=</span> <span class='ident'>opcodes</span>::<span class='ident'>MAX_NOCRYPT</span> {
-        <span class='ident'>parse_clear_message</span>(<span class='ident'>source</span>, <span class='ident'>opcode</span>, <span class='ident'>message_number</span>)
+        <span class='ident'>parse_clear_message</span>(<span class='ident'>source</span>, <span class='ident'>opcode</span>, <span class='ident'>message_number</span>) 
     } <span class='kw'>else</span> {
         <span class='ident'>parse_crypt_message</span>(<span class='ident'>source</span>, <span class='ident'>opcode</span>, <span class='ident'>message_number</span>, <span class='ident'>session_keys</span>)
     }
@@ -444,7 +509,6 @@ along with project-net.  If not, see http://www.gnu.org/licenses/.*/</span>
     }
 }
 
-<span class='comment'>// todo endianness!</span>
 <span class='kw'>fn</span> <span class='ident'>two_bytes_to_u16</span>(<span class='ident'>bytes</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>]) <span class='op'>-&gt;</span> <span class='ident'>u16</span> {
     <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>bytes</span>.<span class='ident'>len</span>(), <span class='number'>2</span>);
 
@@ -478,7 +542,18 @@ along with project-net.  If not, see http://www.gnu.org/licenses/.*/</span>
                 <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>e</span>),
                 <span class='prelude-val'>Ok</span>(<span class='ident'>x</span>) <span class='op'>=&gt;</span> <span class='ident'>x</span>,
             };
-                <span class='prelude-val'>Ok</span>(<span class='ident'>Message</span>{ <span class='ident'>number</span>: <span class='ident'>message_number</span>, <span class='ident'>content</span>: <span class='ident'>MessageContent</span>::<span class='ident'>DeviceFirst</span>(<span class='ident'>public_key_from_slice</span>(<span class='kw-2'>&amp;</span><span class='ident'>pub_key_bytes</span>).<span class='ident'>unwrap</span>())})
+            <span class='kw'>let</span> <span class='ident'>pub_key</span> <span class='op'>=</span> <span class='ident'>public_key_from_slice</span>(<span class='kw-2'>&amp;</span><span class='ident'>pub_key_bytes</span>).<span class='ident'>unwrap</span>();
+
+            <span class='kw'>let</span> <span class='ident'>key_id_bytes</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>get_n_bytes</span>(<span class='ident'>source</span>, <span class='number'>32</span>) {
+                <span class='prelude-val'>Err</span>(<span class='ident'>e</span>) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Err</span>(<span class='ident'>e</span>),
+                <span class='prelude-val'>Ok</span>(<span class='ident'>x</span>) <span class='op'>=&gt;</span> <span class='ident'>x</span>,
+            };
+            <span class='kw'>let</span> <span class='ident'>digest</span> <span class='op'>=</span> <span class='ident'>sha256</span>::<span class='ident'>Digest</span>::<span class='ident'>from_slice</span>(<span class='kw-2'>&amp;</span><span class='ident'>key_id_bytes</span>).<span class='ident'>unwrap</span>();
+            <span class='kw'>let</span> <span class='ident'>key_id</span> <span class='op'>=</span> <span class='ident'>PublicKeyId</span> {
+                <span class='ident'>digest</span>: <span class='ident'>digest</span>,
+            };
+            
+            <span class='prelude-val'>Ok</span>(<span class='ident'>Message</span>{ <span class='ident'>number</span>: <span class='ident'>message_number</span>, <span class='ident'>content</span>: <span class='ident'>MessageContent</span>::<span class='ident'>DeviceFirst</span>(<span class='ident'>pub_key</span>, <span class='ident'>key_id</span> )})
         },
         _ <span class='op'>=&gt;</span> <span class='prelude-val'>Err</span>(<span class='ident'>Error</span>::<span class='ident'>InvalidOpcode</span>),
     } 
@@ -574,7 +649,6 @@ along with project-net.  If not, see http://www.gnu.org/licenses/.*/</span>
         <span class='prelude-val'>Err</span>(<span class='ident'>Error</span>::<span class='ident'>Crypto</span>)
     }
 }
-    
 </pre>
 </section>
     <section id='search' class="content hidden"></section>

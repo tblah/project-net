@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["start","creates a new Server and performs a key exchange"]],"struct":[["Server","Structure containing state information for the server"]]});
+initSidebarItems({"fn":[["do_key_exchange","Takes an incoming connection and performs a key exchange, returning a set up connection or an error."],["listen","Begins listening for connections"]],"struct":[["Server","Structure containing state information for the server"]]});

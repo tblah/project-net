@@ -297,8 +297,8 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>::<span class='ident'>Write</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>net</span>::<span class='ident'>TcpStream</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>net</span>::<span class='ident'>Shutdown</span>;
-<span class='kw'>use</span> <span class='ident'>proj_crypto</span>::<span class='ident'>asymmetric</span>::{<span class='ident'>LongTermKeys</span>, <span class='ident'>SessionKeys</span>};
 <span class='kw'>use</span> <span class='ident'>proj_crypto</span>::<span class='ident'>symmetric</span>;
+<span class='kw'>use</span> {<span class='ident'>Keypair</span>, <span class='ident'>SessionKeys</span>};
 
 <span class='doccomment'>/// Errors returned by the client or server</span>
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
@@ -317,7 +317,7 @@
 <span class='doccomment'>/// state for both the client and server</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>ProtocolState</span> {
     <span class='kw'>pub</span> <span class='ident'>stream</span>: <span class='ident'>TcpStream</span>,
-    <span class='kw'>pub</span> <span class='ident'>long_keys</span>: <span class='ident'>LongTermKeys</span>,
+    <span class='kw'>pub</span> <span class='ident'>long_keypair</span>: <span class='ident'>Keypair</span>,
     <span class='kw'>pub</span> <span class='ident'>next_send_n</span>: <span class='ident'>u16</span>,
     <span class='kw'>pub</span> <span class='ident'>next_recv_n</span>: <span class='ident'>u16</span>,
     <span class='kw'>pub</span> <span class='ident'>session_keys</span>: <span class='ident'>SessionKeys</span>,

@@ -314,8 +314,60 @@
 <span id="270">270</span>
 <span id="271">271</span>
 <span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
 </pre><pre class='rust '>
 <span class='doccomment'>//! Message structure</span>
+<span class='doccomment'>//!</span>
+<span class='doccomment'>//! The submodules implement the asymmetric key exchange</span>
+<span class='doccomment'>//!</span>
+<span class='doccomment'>//! Basically the shared secrets are derived from ephemeral key pairs and authentication keys are the sender&#39;s long-term key pair exchanged with the receiver&#39;s ephemeral key pair. This is faster than signing and I think it is rather elegant too.</span>
+<span class='doccomment'>//!</span>
+<span class='doccomment'>//! # The Protocol</span>
+<span class='doccomment'>//! ## Device Message 0</span>
+<span class='doccomment'>//! + generate ephemeral keypair</span>
+<span class='doccomment'>//! + send ephemeral public key to the server along with the ID of the device&#39;s long-term public key</span>
+<span class='doccomment'>//!</span>
+<span class='doccomment'>//! ## Server Message 0</span>
+<span class='doccomment'>//! + Generate ephemeral keypair</span>
+<span class='doccomment'>//! + Compute session keys</span>
+<span class='doccomment'>//! + Pick a random challenge number</span>
+<span class='doccomment'>//! + Send ephemeral public key and r to the client, along with the ID of the server&#39;s long-term public key. Plaintext authentication (as the client does not yet have the encryption key)</span>
+<span class='doccomment'>//!</span>
+<span class='doccomment'>//! ## Device Message 1</span>
+<span class='doccomment'>//! + Check auth</span>
+<span class='doccomment'>//! + Compute session keys</span>
+<span class='doccomment'>//! + Send r to server, encrypted and authenticated. This authenticates the ephemeral public key we sent in message 0</span>
+<span class='doccomment'>//!</span>
+<span class='doccomment'>//! ## Server</span>
+<span class='doccomment'>//! + Decrypt and authenticate and check the challenge response</span>
+<span class='doccomment'>//!</span>
+<span class='doccomment'>//! ## An important note:</span>
+<span class='doccomment'>//! Authentication session keys are symmetric therefore either party can impersonate the other. In an interactive setting this is not a problem because the keys are fixed to only this pair and the other side would not be expecting to receive a message authenticated using their key. However, if Bob decided to publish all his key material he could fabricate messages which look to a third party as though they are sent by Alice. This was intentional in the design of Signal&#39;s key exchange because it gives both parties plausible deniability.</span>
+<span class='doccomment'>//!</span>
 
 <span class='comment'>/*  This file is part of project-net.
     project-net is free software: you can redistribute it and/or modify
@@ -327,12 +379,11 @@
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
-along with project-net.  If not, see http://www.gnu.org/licenses/.*/</span>
+    along with project-net.  If not, see http://www.gnu.org/licenses/.*/</span>
 
-<span class='kw'>use</span> <span class='ident'>proj_crypto</span>::<span class='ident'>asymmetric</span>;
+<span class='kw'>use</span> <span class='ident'>proj_crypto</span>::<span class='ident'>asymmetric</span>::<span class='ident'>PublicKey</span>;
+<span class='kw'>use</span> <span class='ident'>proj_crypto</span>::<span class='ident'>asymmetric</span>::<span class='ident'>key_id</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>io</span>;
-
-<span class='kw'>pub</span> <span class='kw'>type</span> <span class='ident'>Keypair</span> <span class='op'>=</span> (<span class='ident'>asymmetric</span>::<span class='ident'>PublicKey</span>, <span class='ident'>asymmetric</span>::<span class='ident'>SecretKey</span>);
 
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Message</span> {
@@ -348,17 +399,21 @@ along with project-net.  If not, see http://www.gnu.org/licenses/.*/</span>
     <span class='ident'>NotEnoughWritten</span>(<span class='ident'>usize</span>),
     <span class='ident'>InvalidOpcode</span>,
     <span class='ident'>Crypto</span>,
+    <span class='ident'>PubKeyId</span>,
     <span class='ident'>BadPacket</span>
 }
+
+<span class='doccomment'>/// The number of bytes in the random challenge sent from the server to the client</span>
+<span class='kw'>const</span> <span class='ident'>CHALLENGE_BYTES</span>: <span class='ident'>usize</span> <span class='op'>=</span> <span class='number'>32</span>;
 
 <span class='doccomment'>/// Representation of the information that we care about within a message</span>
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Debug</span>)]</span>
 <span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>MessageContent</span> {
-    <span class='doccomment'>/// Initiates the key exchange</span>
-    <span class='ident'>DeviceFirst</span>(<span class='ident'>asymmetric</span>::<span class='ident'>PublicKey</span>),
+    <span class='doccomment'>/// Initiates the key exchange. </span>
+    <span class='ident'>DeviceFirst</span>(<span class='ident'>PublicKey</span>, <span class='ident'>key_id</span>::<span class='ident'>PublicKeyId</span>),
 
-    <span class='doccomment'>/// Second message in the key exchange</span>
-    <span class='ident'>ServerFirst</span>(<span class='ident'>asymmetric</span>::<span class='ident'>PublicKey</span>, [<span class='ident'>u8</span>; <span class='ident'>asymmetric</span>::<span class='ident'>CHALLENGE_BYTES</span>]),
+    <span class='doccomment'>/// Second message in the key exchange. First public key is for the session, the second is long-term</span>
+    <span class='ident'>ServerFirst</span>(<span class='ident'>PublicKey</span>, [<span class='ident'>u8</span>; <span class='ident'>CHALLENGE_BYTES</span>], <span class='ident'>PublicKey</span>),
 
     <span class='doccomment'>/// Final message in a successful key exchange</span>
     <span class='ident'>DeviceSecond</span>,
@@ -387,13 +442,16 @@ along with project-net.  If not, see http://www.gnu.org/licenses/.*/</span>
 <span class='comment'>/******************* Tests *******************/</span>
 <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>test</span>)]</span>
 <span class='kw'>mod</span> <span class='ident'>tests</span> {
+    <span class='kw'>use</span> <span class='ident'>SessionKeys</span>;
     <span class='kw'>use</span> <span class='kw'>super</span>::<span class='ident'>send</span>;
     <span class='kw'>use</span> <span class='kw'>super</span>::<span class='ident'>receive</span>;
     <span class='kw'>use</span> <span class='kw'>super</span>::<span class='ident'>Message</span>;
     <span class='kw'>use</span> <span class='kw'>super</span>::<span class='ident'>MessageContent</span>;
     <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>sodiumoxide</span>;
     <span class='kw'>use</span> <span class='ident'>sodiumoxide</span>::<span class='ident'>randombytes</span>;
-    <span class='kw'>use</span> <span class='ident'>proj_crypto</span>::<span class='ident'>asymmetric</span>;
+    <span class='kw'>use</span> <span class='ident'>proj_crypto</span>::<span class='ident'>asymmetric</span>::<span class='ident'>key_exchange</span>;
+    <span class='kw'>use</span> <span class='ident'>proj_crypto</span>::<span class='ident'>asymmetric</span>::<span class='ident'>key_id</span>::<span class='op'>*</span>;
+    <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::<span class='ident'>hash_map</span>::<span class='ident'>HashMap</span>;
 
     <span class='attribute'>#[<span class='ident'>test</span>]</span>
     <span class='kw'>fn</span> <span class='ident'>error_general</span>() {
@@ -498,23 +556,11 @@ along with project-net.  If not, see http://www.gnu.org/licenses/.*/</span>
     }
 
     <span class='comment'>// also tests error packets</span>
-    <span class='kw'>fn</span> <span class='ident'>do_full_exchange</span>() <span class='op'>-&gt;</span> (<span class='ident'>asymmetric</span>::<span class='ident'>SessionKeys</span>, <span class='ident'>asymmetric</span>::<span class='ident'>SessionKeys</span>) {
+    <span class='kw'>fn</span> <span class='ident'>do_full_exchange</span>() <span class='op'>-&gt;</span> (<span class='ident'>SessionKeys</span>, <span class='ident'>SessionKeys</span>) {
         <span class='ident'>sodiumoxide</span>::<span class='ident'>init</span>();
 
-        <span class='kw'>let</span> (<span class='ident'>pk_device</span>, <span class='ident'>sk_device</span>) <span class='op'>=</span> <span class='ident'>asymmetric</span>::<span class='ident'>gen_keypair</span>();
-        <span class='kw'>let</span> (<span class='ident'>pk_server</span>, <span class='ident'>sk_server</span>) <span class='op'>=</span> <span class='ident'>asymmetric</span>::<span class='ident'>gen_keypair</span>();
-
-        <span class='kw'>let</span> <span class='ident'>device</span> <span class='op'>=</span> <span class='ident'>asymmetric</span>::<span class='ident'>LongTermKeys</span> {
-            <span class='ident'>my_public_key</span>: <span class='ident'>pk_device</span>.<span class='ident'>clone</span>(),
-            <span class='ident'>my_secret_key</span>: <span class='ident'>sk_device</span>,
-            <span class='ident'>their_public_key</span>: <span class='ident'>pk_server</span>.<span class='ident'>clone</span>(),
-        };
-
-        <span class='kw'>let</span> <span class='ident'>server</span> <span class='op'>=</span> <span class='ident'>asymmetric</span>::<span class='ident'>LongTermKeys</span> {
-            <span class='ident'>my_public_key</span>: <span class='ident'>pk_server</span>.<span class='ident'>clone</span>(),
-            <span class='ident'>my_secret_key</span>: <span class='ident'>sk_server</span>,
-            <span class='ident'>their_public_key</span>: <span class='ident'>pk_device</span>.<span class='ident'>clone</span>(),
-        };
+        <span class='kw'>let</span> <span class='ident'>device_long_keypair</span> <span class='op'>=</span> <span class='ident'>key_exchange</span>::<span class='ident'>gen_keypair</span>();
+        <span class='kw'>let</span> <span class='ident'>server_long_keypair</span> <span class='op'>=</span> <span class='ident'>key_exchange</span>::<span class='ident'>gen_keypair</span>();
 
         <span class='comment'>// medium to send messages across</span>
         <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>channel</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>new</span>();
@@ -522,15 +568,16 @@ along with project-net.  If not, see http://www.gnu.org/licenses/.*/</span>
         <span class='comment'>// device_first:</span>
 
         <span class='comment'>// send message</span>
-        <span class='kw'>let</span> <span class='ident'>device_session_keypair</span> <span class='op'>=</span> <span class='ident'>send</span>::<span class='ident'>device_first</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>channel</span>).<span class='ident'>unwrap</span>();
+        <span class='kw'>let</span> <span class='ident'>device_session_keypair</span> <span class='op'>=</span> <span class='ident'>send</span>::<span class='ident'>device_first</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>channel</span>, <span class='kw-2'>&amp;</span><span class='ident'>device_long_keypair</span>.<span class='number'>0</span>).<span class='ident'>unwrap</span>();
 
         <span class='comment'>// receive message</span>
         <span class='kw'>let</span> <span class='ident'>device_first</span> <span class='op'>=</span> <span class='ident'>receive</span>::<span class='ident'>receive_device_first</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>channel</span>.<span class='ident'>as_slice</span>()).<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> <span class='ident'>sent_pk</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>device_first</span>.<span class='ident'>content</span> {
-            <span class='ident'>MessageContent</span>::<span class='ident'>DeviceFirst</span>(<span class='ident'>p</span>) <span class='op'>=&gt;</span> <span class='ident'>p</span>,
+        <span class='kw'>let</span> (<span class='ident'>sent_pk</span>, <span class='ident'>device_id</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>device_first</span>.<span class='ident'>content</span> {
+            <span class='ident'>MessageContent</span>::<span class='ident'>DeviceFirst</span>(<span class='ident'>p</span>, <span class='ident'>id</span>) <span class='op'>=&gt;</span> (<span class='ident'>p</span>, <span class='ident'>id</span>),
             _ <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;receive::device_first did not return a device first packet&quot;</span>)
         };
 
+        <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>device_id</span>, <span class='ident'>id_of_pk</span>(<span class='kw-2'>&amp;</span><span class='ident'>device_long_keypair</span>.<span class='number'>0</span>));
         <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>sent_pk</span>, <span class='ident'>device_session_keypair</span>.<span class='number'>0</span>);
         <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>device_first</span>.<span class='ident'>number</span>, <span class='number'>0</span>);
 
@@ -542,17 +589,20 @@ along with project-net.  If not, see http://www.gnu.org/licenses/.*/</span>
         <span class='ident'>channel</span>.<span class='ident'>clear</span>();
         
         <span class='comment'>// server_first:</span>
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>trusted_pks</span> <span class='op'>=</span> <span class='ident'>HashMap</span>::<span class='ident'>new</span>();
+        <span class='ident'>trusted_pks</span>.<span class='ident'>insert</span>(<span class='ident'>id_of_pk</span>(<span class='kw-2'>&amp;</span><span class='ident'>server_long_keypair</span>.<span class='number'>0</span>), <span class='ident'>server_long_keypair</span>.<span class='number'>0</span>.<span class='ident'>clone</span>());
 
-        <span class='comment'>// send message</span>
-        <span class='kw'>let</span> (<span class='ident'>server_session_keys</span>, <span class='ident'>server_challenge</span>)<span class='op'>=</span> <span class='ident'>send</span>::<span class='ident'>server_first</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>channel</span>, <span class='kw-2'>&amp;</span><span class='ident'>server</span>, <span class='kw-2'>&amp;</span><span class='ident'>device_session_keypair</span>.<span class='number'>0</span>).<span class='ident'>unwrap</span>();
+        <span class='comment'>// send </span>
+        <span class='kw'>let</span> (<span class='ident'>server_session_keys</span>, <span class='ident'>server_challenge</span>) <span class='op'>=</span> <span class='ident'>send</span>::<span class='ident'>server_first</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>channel</span>, <span class='kw-2'>&amp;</span><span class='ident'>server_long_keypair</span>, <span class='kw-2'>&amp;</span><span class='ident'>device_session_keypair</span>.<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='ident'>device_long_keypair</span>.<span class='number'>0</span>).<span class='ident'>unwrap</span>();
 
-        <span class='comment'>// receive message</span>
-        <span class='kw'>let</span> <span class='ident'>server_first</span> <span class='op'>=</span> <span class='ident'>receive</span>::<span class='ident'>server_first</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>channel</span>.<span class='ident'>as_slice</span>(), <span class='kw-2'>&amp;</span><span class='ident'>device</span>, <span class='kw-2'>&amp;</span><span class='ident'>device_session_keypair</span>).<span class='ident'>unwrap</span>();
-        <span class='kw'>let</span> (<span class='ident'>server_session_pub_key</span>, <span class='ident'>challenge</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>server_first</span>.<span class='ident'>content</span> {
-            <span class='ident'>MessageContent</span>::<span class='ident'>ServerFirst</span>(<span class='ident'>x</span>, <span class='ident'>y</span>) <span class='op'>=&gt;</span> (<span class='ident'>x</span>, <span class='ident'>y</span>),
+        <span class='comment'>// receive </span>
+        <span class='kw'>let</span> <span class='ident'>server_first</span> <span class='op'>=</span> <span class='ident'>receive</span>::<span class='ident'>server_first</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>channel</span>.<span class='ident'>as_slice</span>(), <span class='kw-2'>&amp;</span><span class='ident'>device_session_keypair</span>, <span class='kw-2'>&amp;</span><span class='ident'>trusted_pks</span>).<span class='ident'>unwrap</span>();
+        <span class='kw'>let</span> (<span class='ident'>server_session_pub_key</span>, <span class='ident'>challenge</span>, <span class='ident'>server_id</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>server_first</span>.<span class='ident'>content</span> {
+            <span class='ident'>MessageContent</span>::<span class='ident'>ServerFirst</span>(<span class='ident'>x</span>, <span class='ident'>y</span>, <span class='ident'>z</span>) <span class='op'>=&gt;</span> (<span class='ident'>x</span>, <span class='ident'>y</span>, <span class='ident'>z</span>),
             _ <span class='op'>=&gt;</span> <span class='macro'>panic</span><span class='macro'>!</span>(<span class='string'>&quot;receive::server_first returned the wrong message type!&quot;</span>),
         };
 
+        <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>server_id</span>, <span class='ident'>server_long_keypair</span>.<span class='number'>0</span>);
         <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>server_challenge</span>, <span class='ident'>challenge</span>);
         <span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>server_first</span>.<span class='ident'>number</span>, <span class='number'>0</span>);
 
@@ -560,13 +610,13 @@ along with project-net.  If not, see http://www.gnu.org/licenses/.*/</span>
 
         <span class='comment'>// test sending an error to server_first</span>
         <span class='ident'>send_error</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>channel</span>, <span class='number'>7</span>);
-        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>errorp</span>(<span class='ident'>receive</span>::<span class='ident'>server_first</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>channel</span>.<span class='ident'>as_slice</span>(), <span class='kw-2'>&amp;</span><span class='ident'>device</span>, <span class='kw-2'>&amp;</span><span class='ident'>device_session_keypair</span>)));
+        <span class='macro'>assert</span><span class='macro'>!</span>(<span class='ident'>errorp</span>(<span class='ident'>receive</span>::<span class='ident'>server_first</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>channel</span>.<span class='ident'>as_slice</span>(), <span class='kw-2'>&amp;</span><span class='ident'>device_session_keypair</span>, <span class='kw-2'>&amp;</span><span class='ident'>trusted_pks</span>)));
         <span class='ident'>channel</span>.<span class='ident'>clear</span>();
         
         <span class='comment'>// device_second</span>
 
         <span class='comment'>// send message</span>
-        <span class='kw'>let</span> <span class='ident'>device_session_keys</span> <span class='op'>=</span> <span class='ident'>send</span>::<span class='ident'>device_second</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>channel</span>, <span class='kw-2'>&amp;</span><span class='ident'>device</span>, <span class='kw-2'>&amp;</span><span class='ident'>server_session_pub_key</span>, <span class='kw-2'>&amp;</span><span class='ident'>challenge</span>, <span class='kw-2'>&amp;</span><span class='ident'>device_session_keypair</span>).<span class='ident'>unwrap</span>();
+        <span class='kw'>let</span> <span class='ident'>device_session_keys</span> <span class='op'>=</span> <span class='ident'>send</span>::<span class='ident'>device_second</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>channel</span>, <span class='kw-2'>&amp;</span><span class='ident'>server_long_keypair</span>.<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='ident'>server_session_pub_key</span>, <span class='kw-2'>&amp;</span><span class='ident'>challenge</span>, <span class='kw-2'>&amp;</span><span class='ident'>device_long_keypair</span>, <span class='kw-2'>&amp;</span><span class='ident'>device_session_keypair</span>).<span class='ident'>unwrap</span>();
 
         <span class='comment'>// receive message</span>
         <span class='kw'>let</span> <span class='ident'>device_second</span> <span class='op'>=</span> <span class='ident'>receive</span>::<span class='ident'>device_second</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>channel</span>.<span class='ident'>as_slice</span>(), <span class='kw-2'>&amp;</span><span class='ident'>server_session_keys</span>, <span class='kw-2'>&amp;</span><span class='ident'>server_challenge</span>.<span class='ident'>as_slice</span>()).<span class='ident'>unwrap</span>();

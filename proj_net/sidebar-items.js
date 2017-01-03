@@ -1,1 +1,1 @@
-initSidebarItems({"mod":[["client","Client functionality"],["server","Server functionality"]]});
+initSidebarItems({"mod":[["client","Client functionality"],["server","Server functionality"]],"struct":[["SessionKeys","Stores session keys"]],"type":[["Keypair","Simple tuple of a public key and a secret key"]]});

@@ -1,1 +1,1 @@
-initSidebarItems({"mod":[["asymmetric","Asymmetric Encryption Module."],["symmetric","Symmetric encryption module."]]});
+initSidebarItems({"mod":[["asymmetric","Asymmetric encryption module."],["symmetric","Symmetric encryption module."]]});
