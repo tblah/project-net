@@ -47,7 +47,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a id='src-161' class='srclink' href='../../src/proj_crypto/asymmetric/mod.rs.html#1-38' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../src/proj_crypto/asymmetric/mod.rs.html#1-39' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>Asymmetric encryption module.</p>
 
 <p>See submodules for documentation.</p>
@@ -57,23 +57,31 @@ The types which are part of this module are appropriate for usage with key_excha
 </div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
 <table>
                        <tr class=' module-item'>
+                           <td><a class='mod' href='commitments/index.html'
+                                  title='proj_crypto::asymmetric::commitments'>commitments</a></td>
+                           <td class='docblock-short'>
+                                <p>Implementation of Pedersen&#39;s Commitment scheme
+<a href="http://download.springer.com/static/pdf/357/chp%253A10.1007%252F3-540-46766-1_9.pdf">http://download.springer.com/static/pdf/357/chp%253A10.1007%252F3-540-46766-1_9.pdf</a></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
                            <td><a class='mod' href='key_exchange/index.html'
                                   title='proj_crypto::asymmetric::key_exchange'>key_exchange</a></td>
-                           <td class='docblock short'>
+                           <td class='docblock-short'>
                                 <p>Key exchange module</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class='mod' href='key_id/index.html'
                                   title='proj_crypto::asymmetric::key_id'>key_id</a></td>
-                           <td class='docblock short'>
+                           <td class='docblock-short'>
                                 
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class='mod' href='sign/index.html'
                                   title='proj_crypto::asymmetric::sign'>sign</a></td>
-                           <td class='docblock short'>
+                           <td class='docblock-short'>
                                 <p>Public Key Signatures</p>
                            </td>
                        </tr></table><h2 id='constants' class='section-header'><a href="#constants">Constants</a></h2>
@@ -81,14 +89,14 @@ The types which are part of this module are appropriate for usage with key_excha
                        <tr class=' module-item'>
                            <td><a class='constant' href='constant.PUBLIC_KEY_BYTES.html'
                                   title='proj_crypto::asymmetric::PUBLIC_KEY_BYTES'>PUBLIC_KEY_BYTES</a></td>
-                           <td class='docblock short'>
+                           <td class='docblock-short'>
                                 <p>The number of bytes in a PublicKey</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class='constant' href='constant.SECRET_KEY_BYTES.html'
                                   title='proj_crypto::asymmetric::SECRET_KEY_BYTES'>SECRET_KEY_BYTES</a></td>
-                           <td class='docblock short'>
+                           <td class='docblock-short'>
                                 <p>The number of bytes in a SecretKey</p>
                            </td>
                        </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
@@ -96,14 +104,14 @@ The types which are part of this module are appropriate for usage with key_excha
                        <tr class=' module-item'>
                            <td><a class='fn' href='fn.public_key_from_slice.html'
                                   title='proj_crypto::asymmetric::public_key_from_slice'>public_key_from_slice</a></td>
-                           <td class='docblock short'>
+                           <td class='docblock-short'>
                                 <p>create a public key from a slice</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class='fn' href='fn.secret_key_from_slice.html'
                                   title='proj_crypto::asymmetric::secret_key_from_slice'>secret_key_from_slice</a></td>
-                           <td class='docblock short'>
+                           <td class='docblock-short'>
                                 <p>create a secret key from a slice</p>
                            </td>
                        </tr></table><h2 id='types' class='section-header'><a href="#types">Type Definitions</a></h2>
@@ -111,14 +119,14 @@ The types which are part of this module are appropriate for usage with key_excha
                        <tr class=' module-item'>
                            <td><a class='type' href='type.PublicKey.html'
                                   title='proj_crypto::asymmetric::PublicKey'>PublicKey</a></td>
-                           <td class='docblock short'>
+                           <td class='docblock-short'>
                                 <p>Public Key - just an alias. Implements drop() so the memory will be wiped when it goes out of scope</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class='type' href='type.SecretKey.html'
                                   title='proj_crypto::asymmetric::SecretKey'>SecretKey</a></td>
-                           <td class='docblock short'>
+                           <td class='docblock-short'>
                                 <p>Secret Key - just an alias. Implements drop() so the memory will be wiped when it goes out of scope</p>
                            </td>
                        </tr></table></section>
@@ -177,11 +185,9 @@ The types which are part of this module are appropriate for usage with key_excha
     <script>
         window.rootPath = "../../";
         window.currentCrate = "proj_crypto";
-        window.playgroundUrl = "";
     </script>
     <script src="../../jquery.js"></script>
     <script src="../../main.js"></script>
-    
     <script defer src="../../search-index.js"></script>
 </body>
 </html>

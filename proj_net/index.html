@@ -47,7 +47,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a id='src-0' class='srclink' href='../src/proj_net/src/lib.rs.html#1-142' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../src/proj_net/lib.rs.html#1-315' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'>
 <h1 id='proj_net-library-crate' class='section-header'><a href='#proj_net-library-crate'>Proj_Net library crate.</a></h1>
 <p>This library implements networking around the protocol implemented in proj_crypto.</p>
@@ -62,14 +62,14 @@
                        <tr class=' module-item'>
                            <td><a class='mod' href='client/index.html'
                                   title='proj_net::client'>client</a></td>
-                           <td class='docblock short'>
+                           <td class='docblock-short'>
                                 <p>Client functionality</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class='mod' href='server/index.html'
                                   title='proj_net::server'>server</a></td>
-                           <td class='docblock short'>
+                           <td class='docblock-short'>
                                 <p>Server functionality</p>
                            </td>
                        </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
@@ -77,15 +77,31 @@
                        <tr class=' module-item'>
                            <td><a class='struct' href='struct.SessionKeys.html'
                                   title='proj_net::SessionKeys'>SessionKeys</a></td>
-                           <td class='docblock short'>
+                           <td class='docblock-short'>
                                 <p>Stores session keys</p>
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.get_keys.html'
+                                  title='proj_net::get_keys'>get_keys</a></td>
+                           <td class='docblock-short'>
+                                <p>Reads keys from a file</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.key_gen_to_file.html'
+                                  title='proj_net::key_gen_to_file'>key_gen_to_file</a></td>
+                           <td class='docblock-short'>
+                                <p>Generate a keypair and put it into the specified file
+This is not memory tidy. It would be difficult to clear the memory properly here and I don&#39;t think it matters too much because this doesn&#39;t connect to the network</p>
                            </td>
                        </tr></table><h2 id='types' class='section-header'><a href="#types">Type Definitions</a></h2>
 <table>
                        <tr class=' module-item'>
                            <td><a class='type' href='type.Keypair.html'
                                   title='proj_net::Keypair'>Keypair</a></td>
-                           <td class='docblock short'>
+                           <td class='docblock-short'>
                                 <p>Simple tuple of a public key and a secret key</p>
                            </td>
                        </tr></table></section>
@@ -144,11 +160,9 @@
     <script>
         window.rootPath = "../";
         window.currentCrate = "proj_net";
-        window.playgroundUrl = "";
     </script>
     <script src="../jquery.js"></script>
     <script src="../main.js"></script>
-    
     <script defer src="../search-index.js"></script>
 </body>
 </html>

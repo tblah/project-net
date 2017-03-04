@@ -47,7 +47,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a id='src-5' class='srclink' href='../../src/proj_crypto/symmetric/mod.rs.html#1-274' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../src/proj_crypto/symmetric/mod.rs.html#1-274' title='goto source code'>[src]</a></span></h1>
 <div class='docblock'><p>Symmetric encryption module.</p>
 
 <p>This module provides an interface for symmetric (secret key) cryptography. </p>
@@ -108,7 +108,7 @@ Then we encrypt using ChaCha20. ChaCha20 was chosen over the sodiumoxide default
                        <tr class=' module-item'>
                            <td><a class='struct' href='struct.Digest.html'
                                   title='proj_crypto::symmetric::Digest'>Digest</a></td>
-                           <td class='docblock short'>
+                           <td class='docblock-short'>
                                 <p>A wrapper around sha256::Digest so that we can implement Drop on it to clean up the memory when it goes out of scope.
 This is necessary because often our shared secret keys are sha256 digests.</p>
                            </td>
@@ -116,7 +116,7 @@ This is necessary because often our shared secret keys are sha256 digests.</p>
                        <tr class=' module-item'>
                            <td><a class='struct' href='struct.State.html'
                                   title='proj_crypto::symmetric::State'>State</a></td>
-                           <td class='docblock short'>
+                           <td class='docblock-short'>
                                 <p>Stores the state of the symmetric encryption system.
 Memory is zeroed when this goes out of scope</p>
                            </td>
@@ -125,7 +125,7 @@ Memory is zeroed when this goes out of scope</p>
                        <tr class=' module-item'>
                            <td><a class='constant' href='constant.AUTH_TAG_BYTES.html'
                                   title='proj_crypto::symmetric::AUTH_TAG_BYTES'>AUTH_TAG_BYTES</a></td>
-                           <td class='docblock short'>
+                           <td class='docblock-short'>
                                 <p>The length of an authentication tag in bytes</p>
                            </td>
                        </tr></table></section>
@@ -184,11 +184,9 @@ Memory is zeroed when this goes out of scope</p>
     <script>
         window.rootPath = "../../";
         window.currentCrate = "proj_crypto";
-        window.playgroundUrl = "";
     </script>
     <script src="../../jquery.js"></script>
     <script src="../../main.js"></script>
-    
     <script defer src="../../search-index.js"></script>
 </body>
 </html>
