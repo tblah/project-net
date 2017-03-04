@@ -31,7 +31,17 @@ extern crate proj_crypto;
 extern crate sodiumoxide;
 
 use proj_crypto::symmetric;
-use proj_crypto::asymmetric::{PublicKey, SecretKey};
+use proj_crypto::asymmetric::*;
+use std::fs::OpenOptions;
+use std::fs;
+use std::os::unix::fs::OpenOptionsExt;
+use std::collections::HashMap;
+use std::io::Write;
+use std::io::Read;
+use std::io::Seek;
+use std::io::SeekFrom;
+use std::path::Path;
+use std::fmt::Display;
 
 mod common;
 pub mod server;
@@ -46,6 +56,169 @@ pub struct SessionKeys {
     pub from_device: symmetric::State,
     /// symmetric state for use with message to be sent or received from the server
     pub from_server: symmetric::State,
+}
+fn to_utf8_hex<'a>(bytes: &[u8]) -> Vec<u8> {
+    let strings: Vec<String> = bytes.into_iter()
+        .map(|b| format!("{:02X}", b))
+        .collect();
+
+    let mut ret = Vec::new();
+    ret.extend_from_slice(strings.join(" ").as_bytes());
+    ret
+}
+
+/// Generate a keypair and put it into the specified file
+/// This is not memory tidy. It would be difficult to clear the memory properly here and I don't think it matters too much because this doesn't connect to the network
+pub fn key_gen_to_file<P: AsRef<Path> + Display + Clone>(file_path: P) where String: std::convert::From<P> {
+    // write keypair file
+    let option = OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .create(true)
+        .mode(0o600) // rw-------
+        .open(file_path.clone());
+
+    let mut file = match option {
+        Ok(f) => f,
+        Err(e) => panic!("Opening file '{}' failed with error: {}", file_path, e),
+    };
+
+    sodiumoxide::init();
+    let (pk, sk) = key_exchange::gen_keypair();
+
+    // unwraps to make sure we panic if something doesn't work
+    let _ = file.write(b"PK: ").unwrap();
+    let _ = file.write(&to_utf8_hex(&pk[..])).unwrap();
+    let _ = file.write(b"\nSK: ").unwrap();
+    let _ = file.write(&to_utf8_hex(&sk[..])).unwrap();
+    let _ = file.write(b"\n").unwrap(); // just looks a bit nicer if someone curious looks at the file
+
+    // write public key file
+    let pub_option = OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .create(true)
+        .mode(0o600) // rw-------
+        .open(String::from(file_path.clone()) + ".pub");
+
+    let mut pub_file = match pub_option {
+        Ok(f) => f,
+        Err(e) => panic!("Opening file '{}' failed with error: {}", file_path, e),
+    };
+
+    let _ = pub_file.write(b"PK: ").unwrap();
+    let _ = pub_file.write(&to_utf8_hex(&pk[..])).unwrap();
+    let _ = pub_file.write(b"\n").unwrap();
+}
+
+fn hex_char_to_num(c: char) -> u8 {
+    match c {
+        '0' => 0,
+        '1' => 1,
+        '2' => 2,
+        '3' => 3,
+        '4' => 4,
+        '5' => 5,
+        '6' => 6,
+        '7' => 7,
+        '8' => 8,
+        '9' => 9,
+        'A' => 10,
+        'B' => 11,
+        'C' => 12,
+        'D' => 13,
+        'E' => 14,
+        'F' => 15,
+        _ => panic!("{} is not a hexadecimal digit", c),
+    }
+}
+
+fn hex_to_byte(hex: Vec<char>) -> u8 {
+    assert_eq!(hex.len(), 2);
+
+    hex_char_to_num(hex[1]) | (hex_char_to_num(hex[0]) << 4)
+}
+
+/// returns a file so as to give it back to the caller (it was borrowed to get here)
+fn get_key_from_file(mut file: fs::File, prefix: &str) -> Option<(fs::File, Vec<u8>)> {
+    let prefix_expected = String::from(prefix) + ": ";
+    let mut prefix_read_bytes: [u8; 4] = [0; 4]; // e.g. "PK: "
+
+    match file.read(&mut prefix_read_bytes) {
+        Ok(_) => (),
+        Err(_) => return None,
+    };
+
+    if prefix_read_bytes != prefix_expected.as_bytes() {
+        if prefix_read_bytes != [10, 0, 0, 0]  { // 10 (denary) is linefeed in ascii
+            panic!("The prefix read (as bytes) was {:?}, we expected {:?} ('{}'). Is the file malformed?", prefix_read_bytes, prefix_expected.as_bytes(), prefix_expected);
+        } else { // we just got a linefeed so there is nothing to read
+            return None;
+        }
+    }
+
+    let mut key_hex_bytes: [u8; 64+31] = [0; 64+31]; // 64 characters and 31 spaces
+
+    match file.read(&mut key_hex_bytes) {
+        Ok(_) => (),
+        Err(e) => panic!("Error reading file: {}", e),
+    };
+
+    let mut key_hex_vec = Vec::new();
+    key_hex_vec.extend_from_slice(&key_hex_bytes);
+    
+    let key_hex: Vec<char> = String::from_utf8(key_hex_vec).unwrap().chars().collect();
+
+    // split the hex string into pairs of of hex digits (bytes)
+    let key: Vec<u8> = key_hex.split(|c| *c == ' ')
+        .map(|x| x.to_vec())
+        .map(|x| hex_to_byte(x))
+        .collect();
+
+
+    Some((file, key))
+}
+
+fn open_or_panic<P: AsRef<Path> + Display + Clone>(path: P) -> fs::File {
+    match fs::File::open(path.clone()) {
+        Ok(f) => f,
+        Err(e) => panic!("Error opening file '{}': {}", path, e),
+    }
+}
+
+/// Reads keys from a file
+pub fn get_keys<P1: AsRef<Path> + Display + Clone, P2: AsRef<Path> + Display + Clone>(my_keypair_path: P1, their_pk_path: P2) -> (HashMap<key_id::PublicKeyId, PublicKey>, Keypair) {
+    let my_keypair_file = open_or_panic(my_keypair_path);
+    let mut pk_file = open_or_panic(their_pk_path);
+
+    // get my keypair
+    let (mut my_keypair_file, pk_bytes) = get_key_from_file(my_keypair_file, "PK").unwrap();
+
+    // seek to the start of SK
+    my_keypair_file.seek(SeekFrom::Start(4+64+31+1)).unwrap(); // 4 byte prefix + 64 bytes of hex + 31 spaces + newline
+    let (_, sk_bytes) = get_key_from_file(my_keypair_file, "SK").unwrap();
+
+    let my_pk = public_key_from_slice(&pk_bytes).unwrap();
+    let my_sk = secret_key_from_slice(&sk_bytes).unwrap();
+
+    // get the trusted public keys
+    let mut pks = HashMap::new();
+    loop {
+        let result = get_key_from_file(pk_file, "PK");
+
+        if result.is_none() {
+            break;
+        }
+
+        // else
+        let (pk_file_tmp, pk_bytes) = result.unwrap();
+        pk_file = pk_file_tmp; // got to love the borrow checker
+        let pk = public_key_from_slice(&pk_bytes).unwrap();
+        let pk_id = key_id::id_of_pk(&pk);
+        pks.insert(pk_id, pk);
+    }
+
+    (pks, (my_pk, my_sk))
 }
 
 #[cfg(test)]
